@@ -1,0 +1,124 @@
+<section class="panel nes-container with-title" data-live-panel="exchanges" data-live-version="{{ exchange_live_version }}">
+  <h2 class="title">Http Exchanges</h2>
+  {% macro sort_header(key, label) -%}
+    {% set next_order = 'desc' if exchange_sort == key and exchange_order == 'asc' else 'asc' %}
+    <a class="sort-link" href="{{ url_for('index', **url_args(sort=key, order=next_order, page=1)) }}">
+      {{ label }}
+      {% if exchange_sort == key %}
+        <span>{{ 'up' if exchange_order == 'asc' else 'down' }}</span>
+      {% endif %}
+    </a>
+  {%- endmacro %}
+  <div class="panel-actions">
+    <form method="get" class="filter-grid">
+      <input type="hidden" name="project_id" value="{{ project.id }}">
+      <input type="hidden" name="tab" value="exchanges">
+      <input type="hidden" name="sort" value="{{ exchange_sort }}">
+      <input type="hidden" name="order" value="{{ exchange_order }}">
+      <input class="nes-input" name="id" value="{{ filters.get('id', '') }}" placeholder="ID">
+      <input class="nes-input" name="method" value="{{ filters.get('method', '') }}" placeholder="Method">
+      <input class="nes-input" name="host" value="{{ filters.get('host', '') }}" placeholder="Host">
+      <input class="nes-input" name="path" value="{{ filters.get('path', '') }}" placeholder="Path/query">
+      <input class="nes-input" name="status" value="{{ filters.get('status', '') }}" placeholder="Status">
+      <input class="nes-input" name="body" value="{{ filters.get('body', '') }}" placeholder="Request/response body">
+      <input class="nes-input" name="reflected" value="{{ filters.get('reflected', '') }}" placeholder="Reflected params">
+      <button class="nes-btn is-primary" type="submit">Filter</button>
+    </form>
+    <form method="post" action="{{ url_for('clear_exchanges', project_id=project.id, tab='exchanges') }}" onsubmit="return confirm('Clear all HTTP exchanges for this project?')">
+      <button class="nes-btn is-error" type="submit">Clear</button>
+    </form>
+  </div>
+  <div class="reflector-controls">
+    <form method="post" action="{{ url_for('toggle_reflector', project_id=project.id, tab='exchanges') }}" class="button-row">
+      <input type="hidden" name="enabled" value="{{ 'off' if reflect_enabled else 'on' }}">
+      <label class="nes-checkbox-label">
+        <input type="checkbox" class="nes-checkbox" name="unique_request" {% if reflect_unique_request %}checked{% endif %} {% if reflect_enabled %}disabled{% endif %}>
+        <span>Unique request</span>
+      </label>
+      {% if reflect_enabled and reflect_unique_request %}
+        <input type="hidden" name="unique_request" value="on">
+      {% endif %}
+      <button class="nes-btn {{ 'is-warning' if reflect_enabled else 'is-success' }}" type="submit">
+        {{ 'Disable reflector' if reflect_enabled else 'Enable reflector' }}
+      </button>
+    </form>
+  </div>
+
+  <div class="table-scroll">
+    <table class="nes-table is-bordered is-centered compact-table">
+      <thead>
+        <tr>
+          <th>{{ sort_header('id', 'ID') }}</th>
+          <th>{{ sort_header('timestamp', 'Time') }}</th>
+          <th>{{ sort_header('method', 'Method') }}</th>
+          <th>{{ sort_header('host', 'Host') }}</th>
+          <th>{{ sort_header('path', 'Path') }}</th>
+          <th>{{ sort_header('status', 'Status') }}</th>
+          <th>{{ sort_header('reflected', 'Reflected') }}</th>
+          <th>Repeater</th>
+          <th>Fuzzer</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for row in exchanges %}
+          <tr class="exchange-row" data-raw-toggle-row>
+            <td>#{{ row.id }}</td>
+            <td>{{ row.timestamp }}</td>
+            <td>{{ row.method }}</td>
+            <td class="text-left">{{ row.host }}:{{ row.port }}</td>
+            <td class="text-left path-cell">{{ row.path }}{% if row.query %}?{{ row.query }}{% endif %}</td>
+            <td>{{ row.status_code }}</td>
+            <td class="text-left tiny-cell">{{ row.reflecte_params or '-' }}</td>
+            <td>
+              <form method="post" action="{{ url_for('exchange_to_repeater', exchange_id=row.id) }}">
+                <button class="nes-btn is-success mini-btn" type="submit">Send</button>
+              </form>
+            </td>
+            <td>
+              <form method="post" action="{{ url_for('exchange_to_fuzzer', exchange_id=row.id) }}">
+                <button class="nes-btn is-warning mini-btn" type="submit">Fuzz</button>
+              </form>
+            </td>
+          </tr>
+          <tr class="raw-row">
+            <td colspan="9">
+              <details class="async-raw-details" data-raw-url="{{ url_for('raw_exchange', source_type='http-exchange', source_id=row.id, project_id=project.id) }}">
+                <summary>Raw request / response</summary>
+                <div class="async-raw-body"><p class="dashboard-analysis-empty">Open to load request and response.</p></div>
+                <div class="raw-grid raw-actions-grid">
+                  <div class="request-panel">
+                    <button class="nes-btn is-warning mini-btn" type="button" data-curl-url="{{ url_for('copy_as_curl', source_type='http-exchange', source_id=row.id) }}" data-curl-target="curl-http-exchange-{{ row.id }}" onclick="showCurl(this)">Show curl</button>
+                    <details class="curl-output" id="curl-http-exchange-{{ row.id }}">
+                      <summary>curl command</summary>
+                      <pre data-curl-output></pre>
+                    </details>
+                  </div>
+                  <div class="response-panel">
+                    <form method="post" target="_blank" action="{{ url_for('create_show_response', source_type='http-exchange', source_id=row.id) }}">
+                      <button class="nes-btn is-primary mini-btn" type="submit">Show Response</button>
+                    </form>
+                  </div>
+                </div>
+              </details>
+            </td>
+          </tr>
+        {% else %}
+          <tr><td colspan="9">No requests.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  <nav class="pagination-row" aria-label="Http exchanges pagination">
+    <span>
+      Showing page {{ exchange_page }} of {{ exchange_page_count }}
+      ({{ exchange_total }} total, {{ exchange_page_size }} per page)
+    </span>
+    <div class="button-row">
+      <a class="nes-btn mini-btn {{ 'is-disabled' if exchange_page <= 1 else '' }}"
+         href="{{ url_for('index', **url_args(page=exchange_page - 1)) }}">Previous</a>
+      <a class="nes-btn mini-btn {{ 'is-disabled' if exchange_page >= exchange_page_count else '' }}"
+         href="{{ url_for('index', **url_args(page=exchange_page + 1)) }}">Next</a>
+    </div>
+  </nav>
+</section>

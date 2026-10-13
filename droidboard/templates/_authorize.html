@@ -1,0 +1,139 @@
+<section class="panel nes-container with-title">
+  <h2 class="title">Authorize</h2>
+  <div class="authorize-controls">
+    <form method="post" action="{{ url_for('toggle_authorize', project_id=project.id, tab='authorize') }}" class="button-row">
+      <input type="hidden" name="enabled" value="{{ 'off' if authorize_enabled else 'on' }}">
+      <button class="nes-btn {{ 'is-warning' if authorize_enabled else 'is-success' }}" type="submit">
+        {{ 'Disable authorize' if authorize_enabled else 'Enable authorize' }}
+      </button>
+    </form>
+    <form method="post" action="{{ url_for('save_authorize_user', project_id=project.id, tab='authorize') }}" class="authorize-user-form">
+      <input class="nes-input" name="name" placeholder="user">
+      <textarea class="nes-textarea monospace" name="headers" rows="4" placeholder="Cookie: sid=123&#10;Bearer Token: abc"></textarea>
+      <button class="nes-btn is-primary" type="submit">Save user</button>
+    </form>
+  </div>
+
+  <div class="table-scroll users-table">
+    <table class="nes-table is-bordered compact-table">
+      <thead><tr><th>User</th><th>Headers</th><th>Source</th><th></th></tr></thead>
+      <tbody>
+        {% for user in authorize_users %}
+          <tr>
+            <td>{{ user.name }}</td>
+            <td class="text-left">{{ user.headers.keys() | join(', ') }}</td>
+            <td>{{ user.source_file or '-' }}</td>
+            <td>
+              <form method="post" action="{{ url_for('delete_authorize_user', name=user.name, project_id=project.id, tab='authorize') }}" onsubmit="return confirm('Remove this authorize user?')">
+                <button class="nes-btn is-error mini-btn" type="submit">Delete</button>
+              </form>
+            </td>
+          </tr>
+        {% else %}
+          <tr><td colspan="4">No authorize users.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<section class="panel nes-container with-title">
+  <h2 class="title">Response comparison</h2>
+  <div class="panel-actions">
+    <form method="get" class="filter-grid">
+      <input type="hidden" name="project_id" value="{{ project.id }}">
+      <input type="hidden" name="tab" value="authorize">
+      <input class="nes-input" name="auth_q" value="{{ filters.get('auth_q', '') }}" placeholder="URL/method">
+      <input class="nes-input" name="auth_user" value="{{ filters.get('auth_user', '') }}" placeholder="User">
+      <input class="nes-input" name="auth_status" value="{{ filters.get('auth_status', '') }}" placeholder="Status">
+      <button class="nes-btn is-primary" type="submit">Filter</button>
+    </form>
+    <form method="post" action="{{ url_for('clear_authorize', project_id=project.id, tab='authorize') }}" onsubmit="return confirm('Clear all authorize history for this project?')">
+      <button class="nes-btn is-error" type="submit">Clear</button>
+    </form>
+  </div>
+
+  <div class="comparison-list">
+    {% for group in authorize_groups %}
+      <article class="comparison-row {{ 'same-response' if group.risk == 'same-response' else '' }}">
+        <div>
+          <strong>#{{ group.source_exchange_id }} {{ group.method }}</strong>
+          <span>{{ group.url }}</span>
+        </div>
+        <div>
+          {% if group.same_response_sets %}
+            <span class="nes-text is-error">Same response: {{ group.same_response_sets | map('join', ', ') | join(' | ') }}</span>
+          {% else %}
+            <span class="nes-text is-success">Distinct responses</span>
+          {% endif %}
+        </div>
+      </article>
+    {% else %}
+      <p>No authorize replays.</p>
+    {% endfor %}
+  </div>
+</section>
+
+<section class="panel nes-container with-title">
+  <h2 class="title">Authorize history</h2>
+  <div class="table-scroll">
+    <table class="nes-table is-bordered compact-table">
+      <thead>
+        <tr>
+          <th>ID</th><th>Source</th><th>User</th><th>Method</th><th>URL</th><th>Status</th><th>Size</th><th>ms</th><th>Error</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for row in authorize_rows %}
+          <tr>
+            <td>#{{ row.id }}</td>
+            <td>#{{ row.source_exchange_id }}</td>
+            <td>{{ row.user_name }}</td>
+            <td>{{ row.method }}</td>
+            <td class="text-left path-cell">{{ row.url }}</td>
+            <td>{{ row.status_code }}</td>
+            <td>{{ row.response_size }}</td>
+            <td>{{ row.duration_ms }}</td>
+            <td class="text-left tiny-cell">{{ row.error or '-' }}</td>
+          </tr>
+          <tr class="raw-row">
+            <td colspan="9">
+              <details class="async-raw-details" data-raw-url="{{ url_for('raw_exchange', source_type='authorize', source_id=row.id, project_id=project.id) }}">
+                <summary>Raw request / response</summary>
+                <div class="async-raw-body"><p class="dashboard-analysis-empty">Open to load request and response.</p></div>
+                <div class="raw-grid raw-actions-grid">
+                  <div class="request-panel">
+                    <button class="nes-btn is-warning mini-btn" type="button" data-curl-url="{{ url_for('copy_as_curl', source_type='authorize', source_id=row.id) }}" data-curl-target="curl-authorize-{{ row.id }}" onclick="showCurl(this)">Show curl</button>
+                    <details class="curl-output" id="curl-authorize-{{ row.id }}">
+                      <summary>curl command</summary>
+                      <pre data-curl-output></pre>
+                    </details>
+                  </div>
+                  <div class="response-panel">
+                    <form method="post" target="_blank" action="{{ url_for('create_show_response', source_type='authorize', source_id=row.id) }}">
+                      <button class="nes-btn is-primary mini-btn" type="submit">Show Response</button>
+                    </form>
+                  </div>
+                </div>
+              </details>
+            </td>
+          </tr>
+        {% else %}
+          <tr><td colspan="9">No authorize results.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  <nav class="pagination-row" aria-label="Authorize history pagination">
+    <span>
+      Showing page {{ authorize_page }} of {{ authorize_page_count }}
+      ({{ authorize_total }} total, {{ authorize_page_size }} per page)
+    </span>
+    <div class="button-row">
+      <a class="nes-btn mini-btn {{ 'is-disabled' if authorize_page <= 1 else '' }}"
+         href="{{ url_for('index', **url_args(auth_page=authorize_page - 1)) }}">Previous</a>
+      <a class="nes-btn mini-btn {{ 'is-disabled' if authorize_page >= authorize_page_count else '' }}"
+         href="{{ url_for('index', **url_args(auth_page=authorize_page + 1)) }}">Next</a>
+    </div>
+  </nav>
+</section>

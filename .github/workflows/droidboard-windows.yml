@@ -1,0 +1,26 @@
+name: Build Droidboard for Windows
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          architecture: x64
+      - name: Build desktop package
+        shell: pwsh
+        run: ./scripts/build-droidboard-windows.ps1 -Python python
+      - name: Test desktop server lifecycle
+        shell: pwsh
+        run: |
+          ./.venv-desktop/Scripts/python.exe -m pip install pytest
+          ./.venv-desktop/Scripts/python.exe -m pytest backend/tests/test_droidboard_desktop.py -q
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Droidboard-windows-x64
+          path: dist/Droidboard-windows-x64.zip
+          if-no-files-found: error

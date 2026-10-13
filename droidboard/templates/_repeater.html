@@ -1,0 +1,71 @@
+<section class="panel nes-container with-title">
+  <h2 class="title">Repeater</h2>
+  <form method="post" action="{{ url_for('clear_repeater', project_id=project.id, tab='repeater') }}" class="button-row">
+    <button class="nes-btn is-error" type="submit" onclick="return confirm('Clear all repeater results and close every tab?')">Clear</button>
+  </form>
+  <form method="get" class="filter-grid">
+    <input type="hidden" name="project_id" value="{{ project.id }}">
+    <input type="hidden" name="tab" value="repeater">
+    <input class="nes-input" name="repeater_q" value="{{ filters.get('repeater_q', '') }}" placeholder="ID, source, nome, URL">
+    <input class="nes-input" name="repeater_method" value="{{ filters.get('repeater_method', '') }}" placeholder="Method">
+    <input class="nes-input" name="repeater_status" value="{{ filters.get('repeater_status', '') }}" placeholder="Status">
+    <button class="nes-btn is-primary" type="submit">Filter</button>
+  </form>
+
+  <form method="post" action="{{ url_for('create_repeater', project_id=project.id, tab='repeater') }}" class="new-repeater">
+    <input class="nes-input" name="name" placeholder="Name">
+    <textarea class="nes-textarea monospace" name="request_raw" rows="5" placeholder="GET https://target/path HTTP/1.1&#10;Host: target&#10;Header: value&#10;&#10;body"></textarea>
+    <button class="nes-btn is-success" type="submit">New record</button>
+  </form>
+</section>
+
+<section class="repeater-workspace nes-container">
+  {% if repeater_items %}
+    <div class="repeater-tabs" role="tablist" aria-label="Repeater records">
+      {% for item in repeater_items %}
+        <button class="repeater-tab {{ 'is-active' if loop.first else '' }}" type="button" role="tab" aria-selected="{{ 'true' if loop.first else 'false' }}" data-repeater-tab="repeater-panel-{{ item.id }}">
+          <span>#{{ item.id }}</span>
+          <small>{{ item.method }} {{ item.status_code or '-' }}</small>
+        </button>
+      {% endfor %}
+    </div>
+
+    <div class="repeater-panels">
+      {% for item in repeater_items %}
+        <article class="repeater-record {{ 'is-active' if loop.first else '' }}" id="repeater-panel-{{ item.id }}" role="tabpanel">
+          <h3>#{{ item.id }}{% if item.source_exchange_id %} from exchange #{{ item.source_exchange_id }}{% endif %}</h3>
+          <form method="post" action="{{ url_for('save_repeater', item_id=item.id, project_id=project.id, tab='repeater') }}">
+            <div class="raw-grid repeater-raw-grid">
+              <div class="repeater-raw-panel">
+                <label for="repeater-request-{{ item.id }}">Request</label>
+                <textarea id="repeater-request-{{ item.id }}" class="nes-textarea monospace repeater-raw" name="request_raw" rows="24" data-http-editor data-auto-grow>{{ item.request_raw }}</textarea>
+                <button class="nes-btn download-icon-btn" type="button" data-download-http="repeater-request-{{ item.id }}" data-download-filename="repeater-{{ item.id }}-request.txt" title="Download request .txt" aria-label="Download request .txt"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M12 3v12m-5-5 5 5 5-5M5 16v5h14v-5"/></svg></button>
+              </div>
+              <div class="repeater-raw-panel">
+                <label for="repeater-response-{{ item.id }}">Response</label>
+                <textarea id="repeater-response-{{ item.id }}" class="nes-textarea monospace repeater-raw" rows="24" readonly data-http-editor data-auto-grow>{{ item.response_raw }}</textarea>
+                <button class="nes-btn download-icon-btn" type="button" data-download-http="repeater-response-{{ item.id }}" data-download-filename="repeater-{{ item.id }}-response.txt" title="Download response .txt" aria-label="Download response .txt"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M12 3v12m-5-5 5 5 5-5M5 16v5h14v-5"/></svg></button>
+              </div>
+            </div>
+            {% if item.error %}<p class="nes-text is-error">{{ item.error }}</p>{% endif %}
+            <div class="button-row record-actions">
+              <button class="nes-btn" type="submit">Save</button>
+              <button class="nes-btn is-primary" type="submit" formaction="{{ url_for('send_repeater', item_id=item.id, project_id=project.id, tab='repeater') }}">Send</button>
+              <button class="nes-btn is-warning" type="button" data-curl-url="{{ url_for('copy_as_curl', source_type='repeater', source_id=item.id) }}" data-curl-target="curl-repeater-{{ item.id }}" onclick="showCurl(this)">Show curl</button>
+              <button class="nes-btn is-primary" type="submit" formtarget="_blank" formaction="{{ url_for('create_show_response', source_type='repeater', source_id=item.id) }}">Show Response</button>
+              <button class="nes-btn is-success" type="submit" formaction="{{ url_for('clone_repeater', item_id=item.id, project_id=project.id, tab='repeater') }}">Reuse</button>
+              <button class="nes-btn is-warning" type="submit" formaction="{{ url_for('repeater_to_fuzzer', item_id=item.id, project_id=project.id, tab='repeater') }}">Fuzz</button>
+              <button class="nes-btn is-error" type="submit" formaction="{{ url_for('delete_repeater', item_id=item.id, project_id=project.id, tab='repeater') }}" formnovalidate onclick="return confirm('Delete this record?')">Delete</button>
+            </div>
+            <details class="curl-output" id="curl-repeater-{{ item.id }}">
+              <summary>curl command</summary>
+              <pre data-curl-output></pre>
+            </details>
+          </form>
+        </article>
+      {% endfor %}
+    </div>
+  {% else %}
+    <section class="empty-state nes-container">No repeater records.</section>
+  {% endif %}
+</section>

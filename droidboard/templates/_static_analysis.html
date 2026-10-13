@@ -1,0 +1,27 @@
+<section class="panel nes-container with-title static-analysis-panel">
+  <h2 class="title">Static Analysis</h2>
+
+  <form method="post" action="{{ url_for('static_analysis_strings', project_id=project.id) }}" enctype="multipart/form-data" class="static-analysis-form">
+    <label>
+      <span>Binary file</span>
+      <input class="nes-input" type="file" name="binary_file">
+    </label>
+    <button class="nes-btn is-primary" type="submit">Extract strings</button>
+  </form>
+
+  {% if static_analysis_result %}
+    <section class="static-analysis-result">
+      <div class="metric">
+        <strong>{{ static_analysis_result.filename }}</strong>
+        <span>exit {{ static_analysis_result.returncode }}</span>
+      </div>
+      {% if static_analysis_result.error %}
+        <pre>{{ static_analysis_result.error }}</pre>
+      {% endif %}
+      <label>
+        <span>Strings</span>
+        <textarea class="nes-textarea monospace static-analysis-output" rows="28" readonly>{{ static_analysis_result.strings }}</textarea>
+      </label>
+    </section>
+  {% endif %}
+</section>

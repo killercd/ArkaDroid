@@ -1,0 +1,959 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Board Droid</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='board.css') }}">
+  </head>
+  <body>
+    <div class="loading-overlay" role="status" aria-live="polite" aria-label="Loading">
+      <span class="loading-spinner" aria-hidden="true"></span>
+      <span>Loading…</span>
+    </div>
+    <header class="board-header">
+      <div class="board-title">
+        <h1>Board Droid</h1>
+        <span class="nes-badge"><span class="is-dark">ArkaDroid</span></span>
+      </div>
+      <div class="status-line">
+        <span>Project: {{ project.id if project else '-' }}</span>
+        <span>Proxy: {{ 'running' if proxy_state.running else 'stopped' }}</span>
+        <span>Port: {{ proxy_state.listen_port }}</span>
+        <span>Invisible: {{ 'on' if proxy_state.invisible_proxy else 'off' }}</span>
+        <span>Intercept: {{ 'on' if intercept_enabled else 'off' }}</span>
+        <span>Authorize: {{ 'on' if authorize_enabled else 'off' }}</span>
+        <span>Reflector: {{ 'on' if reflect_enabled else 'off' }}</span>
+      </div>
+    </header>
+
+    <main class="board-shell">
+      {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+          <section class="flash-stack">
+            {% for category, message in messages %}
+              <p class="nes-text {{ 'is-error' if category == 'error' else 'is-success' }}">{{ message }}</p>
+            {% endfor %}
+          </section>
+        {% endif %}
+      {% endwith %}
+
+      <section class="toolbar nes-container">
+        <form method="post" action="{{ url_for('create_project') }}" class="inline-form">
+          <label>
+            <span>New project</span>
+            <input class="nes-input compact-input" type="text" name="name" placeholder="name">
+          </label>
+          <label>
+            <span>Port</span>
+            <input class="nes-input port-input" type="number" name="port" value="8080" min="1" max="65535">
+          </label>
+          <button class="nes-btn is-primary" type="submit">Create</button>
+        </form>
+
+        <form method="post" action="{{ url_for('open_project', tab=tab) }}" class="inline-form">
+          <label>
+            <span>Project</span>
+            <select class="nes-select" name="project_id">
+              {% for item in projects %}
+                <option value="{{ item.id }}" {% if project and item.id == project.id %}selected{% endif %}>
+                  #{{ item.id }} {{ item.name }}
+                </option>
+              {% endfor %}
+            </select>
+          </label>
+          <button class="nes-btn" type="submit">Open</button>
+        </form>
+
+        <div class="button-row">
+          <form method="post" action="{{ url_for('proxy', action='start', project_id=project.id if project else None, tab=tab) }}" class="inline-form">
+            {% if project %}
+              <input type="hidden" name="invisible_proxy_present" value="1">
+              <label class="nes-checkbox-label">
+                <input type="checkbox" class="nes-checkbox" name="invisible_proxy" {% if invisible_proxy_enabled %}checked{% endif %} {% if proxy_state.running %}disabled{% endif %}>
+                <span>Invisible proxy</span>
+              </label>
+            {% endif %}
+            <button class="nes-btn is-success" type="submit" {% if not project or proxy_state.running %}disabled{% endif %}>Proxy start</button>
+          </form>
+          <form method="post" action="{{ url_for('proxy', action='stop', project_id=project.id if project else None, tab=tab) }}">
+            <button class="nes-btn is-warning" type="submit" {% if not proxy_state.running %}disabled{% endif %}>Proxy stop</button>
+          </form>
+          {% if project %}
+            <a class="nes-btn" href="{{ url_for('export_ca', project_id=project.id, tab=tab) }}">Export CA</a>
+            <a class="nes-btn {{ 'is-primary' if tab == 'mobile' else '' }}" href="{{ url_for('index', project_id=project.id, tab='mobile') }}">Mobile</a>
+            <a class="nes-btn {{ 'is-primary' if tab == 'static-analysis' else '' }}" href="{{ url_for('index', project_id=project.id, tab='static-analysis') }}">Static Analysis</a>
+            <form method="post" action="{{ url_for('delete_project', project_id=project.id) }}" onsubmit="return confirm('Remove this project and related data?')">
+              <button class="nes-btn is-error" type="submit">Delete project</button>
+            </form>
+          {% endif %}
+        </div>
+      </section>
+
+      {% if not project %}
+        <section class="empty-state nes-container with-title">
+          <h2 class="title">Start</h2>
+          <p>Create or select a project to use the board.</p>
+        </section>
+      {% else %}
+        {% if tab == 'mobile' %}
+          {% include "_mobile.html" %}
+        {% elif tab == 'static-analysis' %}
+          {% include "_static_analysis.html" %}
+        {% else %}
+          <nav class="tabs">
+            <a class="nes-btn {{ 'is-primary' if tab == 'exchanges' else '' }}" href="{{ url_for('index', project_id=project.id, tab='exchanges') }}">Http Exchanges</a>
+            <a class="nes-btn {{ 'is-primary' if tab == 'intercept' else '' }}" href="{{ url_for('index', project_id=project.id, tab='intercept') }}">Intercept</a>
+            <a class="nes-btn {{ 'is-primary' if tab == 'repeater' else '' }}" href="{{ url_for('index', project_id=project.id, tab='repeater') }}">Repeater</a>
+            <a class="nes-btn {{ 'is-primary' if tab == 'authorize' else '' }}" href="{{ url_for('index', project_id=project.id, tab='authorize') }}">Authorize</a>
+            <a class="nes-btn {{ 'is-primary' if tab == 'fuzzer' else '' }}" href="{{ url_for('index', project_id=project.id, tab='fuzzer') }}">Fuzzer</a>
+            <a class="nes-btn {{ 'is-primary' if tab == 'dashboard' else '' }}" href="{{ url_for('index', project_id=project.id, tab='dashboard') }}">Dashboard</a>
+          </nav>
+
+          {% if tab == 'repeater' %}
+            {% include "_repeater.html" %}
+          {% elif tab == 'intercept' %}
+            {% include "_intercept.html" %}
+          {% elif tab == 'authorize' %}
+            {% include "_authorize.html" %}
+          {% elif tab == 'fuzzer' %}
+            {% include "_fuzzer.html" %}
+          {% elif tab == 'dashboard' %}
+            {% include "_dashboard.html" %}
+          {% else %}
+            {% include "_exchanges.html" %}
+          {% endif %}
+        {% endif %}
+      {% endif %}
+    </main>
+    <script>
+      const asyncNavigation = (() => {
+        const ignoredPaths = ['/ca/export', '/mobile/android-ca/download', '/show-response/'];
+        let pendingSubmitter = null;
+
+        function shouldIgnoreUrl(url) {
+          return url.origin !== window.location.origin || ignoredPaths.some((path) => url.pathname.startsWith(path));
+        }
+
+        function formSubmitter(form, submitter) {
+          if (submitter) {
+            return submitter;
+          }
+          if (pendingSubmitter && pendingSubmitter.form === form) {
+            return pendingSubmitter;
+          }
+          return null;
+        }
+
+        function formUrl(form, submitter) {
+          const action = submitter?.getAttribute('formaction') || form.getAttribute('action') || window.location.href;
+          return new URL(action, window.location.href);
+        }
+
+        function formMethod(form, submitter) {
+          return (submitter?.getAttribute('formmethod') || form.getAttribute('method') || 'get').toLowerCase();
+        }
+
+        function formTarget(form, submitter) {
+          return submitter?.getAttribute('formtarget') || form.getAttribute('target') || '';
+        }
+
+        function shouldIgnoreForm(form, submitter) {
+          const button = formSubmitter(form, submitter);
+          const action = formUrl(form, button);
+          const target = formTarget(form, button);
+          return Boolean(target && target !== '_self') || shouldIgnoreUrl(action);
+        }
+
+        function setBusy(isBusy) {
+          document.body.classList.toggle('is-loading', isBusy);
+        }
+
+        function flash(messages) {
+          if (!messages || messages.length === 0) {
+            return;
+          }
+          const shell = document.querySelector('.board-shell');
+          if (!shell) {
+            return;
+          }
+          const existing = shell.querySelector('.flash-stack');
+          if (existing) {
+            existing.remove();
+          }
+          const stack = document.createElement('section');
+          stack.className = 'flash-stack';
+          for (const item of messages) {
+            const line = document.createElement('p');
+            line.className = `nes-text ${item.category === 'error' ? 'is-error' : 'is-success'}`;
+            line.textContent = item.message;
+            stack.appendChild(line);
+          }
+          shell.prepend(stack);
+        }
+
+        function replaceBoard(html, url) {
+          const doc = new DOMParser().parseFromString(html, 'text/html');
+          const nextHeader = doc.querySelector('.board-header');
+          const nextShell = doc.querySelector('.board-shell');
+          const header = document.querySelector('.board-header');
+          const shell = document.querySelector('.board-shell');
+          if (!nextHeader || !nextShell || !header || !shell) {
+            window.location.href = url;
+            return;
+          }
+          header.replaceWith(nextHeader);
+          shell.replaceWith(nextShell);
+          window.history.pushState({}, '', url);
+          initializeBoardEnhancements();
+        }
+
+        async function loadPage(url, messages) {
+          setBusy(true);
+          try {
+            const response = await fetch(url, {
+              headers: {'X-Requested-With': 'XMLHttpRequest'},
+            });
+            if (!response.ok) {
+              throw new Error(`HTTP ${response.status}`);
+            }
+            replaceBoard(await response.text(), response.url);
+            flash(messages);
+          } finally {
+            setBusy(false);
+          }
+        }
+
+        async function submitForm(form, submitter) {
+          const button = formSubmitter(form, submitter);
+          const method = formMethod(form, button);
+          const action = formUrl(form, button);
+          const target = formTarget(form, button);
+          if (target && target !== '_self') {
+            return false;
+          }
+          if (shouldIgnoreUrl(action)) {
+            return false;
+          }
+
+          setBusy(true);
+          try {
+            if (method === 'get') {
+              const params = new URLSearchParams(new FormData(form));
+              action.search = params.toString();
+              await loadPage(action.toString());
+              return true;
+            }
+
+            const formData = new FormData(form);
+            if (button?.name && !formData.has(button.name)) {
+              formData.append(button.name, button.value);
+            }
+            const response = await fetch(action, {
+              method: method.toUpperCase(),
+              body: formData,
+              headers: {
+                'Accept': 'application/json',
+                'X-Requested-With': 'XMLHttpRequest',
+              },
+            });
+            const contentType = response.headers.get('content-type') || '';
+            if (!contentType.includes('application/json')) {
+              const text = await response.text();
+              throw new Error(text.trim() ? text.trim().slice(0, 180) : `HTTP ${response.status}`);
+            }
+            const payload = await response.json();
+            await loadPage(payload.redirect || window.location.href, payload.messages);
+            return true;
+          } catch (error) {
+            flash([{category: 'error', message: error.message || 'Async request failed.'}]);
+            return true;
+          } finally {
+            setBusy(false);
+          }
+        }
+
+        document.addEventListener('click', (event) => {
+          const button = event.target.closest('button, input[type="submit"], input[type="image"]');
+          if (button && button.form) {
+            pendingSubmitter = button;
+          }
+        }, true);
+
+        document.addEventListener('submit', async (event) => {
+          const form = event.target.closest('form');
+          if (!form || event.defaultPrevented) {
+            return;
+          }
+          if (shouldIgnoreForm(form, event.submitter)) {
+            pendingSubmitter = null;
+            return;
+          }
+          event.preventDefault();
+          await submitForm(form, event.submitter);
+          pendingSubmitter = null;
+        });
+
+        document.addEventListener('click', async (event) => {
+          const link = event.target.closest('a[href]');
+          if (!link || event.defaultPrevented || link.target || link.hasAttribute('download')) {
+            return;
+          }
+          const url = new URL(link.href, window.location.href);
+          if (shouldIgnoreUrl(url)) {
+            return;
+          }
+          event.preventDefault();
+          await loadPage(url.toString());
+        });
+
+        window.addEventListener('popstate', () => {
+          loadPage(window.location.href);
+        });
+
+        return {setBusy};
+      })();
+
+      let livePollTimer = null;
+      let livePollInFlight = false;
+
+      function initializeBoardEnhancements() {
+        initializeRepeaterTabs();
+        initializeHttpHighlighting();
+        initializeDashboardEvidence();
+        initializeLivePolling();
+      }
+
+      function initializeLivePolling() {
+        if (livePollTimer) {
+          clearInterval(livePollTimer);
+          livePollTimer = null;
+        }
+        const panel = document.querySelector('[data-live-panel]');
+        if (!panel) {
+          return;
+        }
+        livePollTimer = setInterval(refreshLivePanel, 1500);
+      }
+
+      async function refreshLivePanel() {
+        const panel = document.querySelector('[data-live-panel]');
+        if (!panel || document.hidden || livePollInFlight || panelHasActiveWork(panel)) {
+          return;
+        }
+        const pageUrl = window.location.href;
+        livePollInFlight = true;
+        try {
+          const response = await fetch(pageUrl, {
+            headers: {'X-Requested-With': 'XMLHttpRequest'},
+            cache: 'no-store',
+          });
+          if (!response.ok) {
+            return;
+          }
+          const doc = new DOMParser().parseFromString(await response.text(), 'text/html');
+          const selector = `[data-live-panel="${panel.dataset.livePanel}"]`;
+          const nextPanel = doc.querySelector(selector);
+          if (!panel.isConnected || window.location.href !== pageUrl || panelHasActiveWork(panel) ||
+              !nextPanel || nextPanel.dataset.liveVersion === panel.dataset.liveVersion) {
+            return;
+          }
+          const active = document.activeElement;
+          if (panel.dataset.livePanel === 'fuzzer') {
+            preserveFuzzerState(panel, nextPanel);
+          }
+          panel.replaceWith(nextPanel);
+          if (active && nextPanel.contains(active)) {
+            active.focus({preventScroll: true});
+          }
+          initializeBoardEnhancements();
+        } catch (error) {
+          // Keep polling quiet; normal navigation and flash messages surface actionable failures.
+        } finally {
+          livePollInFlight = false;
+        }
+      }
+
+      function preserveFuzzerState(panel, nextPanel) {
+        for (const job of panel.querySelectorAll('[data-fuzzer-job]')) {
+          const nextJob = nextPanel.querySelector(`[data-fuzzer-job="${job.dataset.fuzzerJob}"]`);
+          if (!nextJob) continue;
+          nextJob.querySelector('.fuzzer-results-details').open = job.querySelector('.fuzzer-results-details').open;
+          nextJob.querySelector('.fuzzer-result-filter').replaceWith(job.querySelector('.fuzzer-result-filter'));
+          const rawDetails = new Map(
+            Array.from(job.querySelectorAll('.async-raw-details[open]'), details => [details.dataset.rawUrl, details])
+          );
+          for (const details of nextJob.querySelectorAll('.async-raw-details')) {
+            const previous = rawDetails.get(details.dataset.rawUrl);
+            if (previous) details.replaceWith(previous);
+          }
+        }
+      }
+
+      function panelHasActiveWork(panel) {
+        if (panel.dataset.livePanel === 'fuzzer') {
+          return false;
+        }
+        const active = document.activeElement;
+        if (active && panel.contains(active) && active.matches('input, textarea, select')) {
+          return true;
+        }
+        if (panel.querySelector('details[open]:not(.fuzzer-results-details)')) {
+          return true;
+        }
+        return Boolean(panel.querySelector('textarea:focus, input:focus, select:focus'));
+      }
+
+      function downloadHttpText(content, filename) {
+        const url = URL.createObjectURL(new Blob([content], {type: 'text/plain;charset=utf-8'}));
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = filename;
+        document.body.appendChild(link);
+        link.click();
+        link.remove();
+        setTimeout(() => URL.revokeObjectURL(url), 1000);
+      }
+
+      document.addEventListener('click', (event) => {
+        const button = event.target.closest('[data-download-http]');
+        if (!button) return;
+        const textarea = document.getElementById(button.dataset.downloadHttp);
+        if (textarea) downloadHttpText(textarea.value, button.dataset.downloadFilename);
+      });
+
+      async function loadAsyncRawDetails(details) {
+        if (details.dataset.rawLoaded === 'true' || details.dataset.rawLoading === 'true') {
+          return;
+        }
+        const body = details.querySelector('.async-raw-body');
+        if (!body) {
+          return;
+        }
+        details.dataset.rawLoading = 'true';
+        body.textContent = 'Loading request and response…';
+        asyncNavigation.setBusy(true);
+        try {
+          const response = await fetch(details.dataset.rawUrl, {
+            headers: {'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest'},
+          });
+          const payload = await response.json();
+          if (!response.ok || !payload.ok) {
+            throw new Error(payload.error || `HTTP ${response.status}`);
+          }
+          const grid = document.createElement('div');
+          grid.className = 'raw-grid';
+          for (const [label, raw] of [['Request', payload.request_raw], ['Response', payload.response_raw]]) {
+            const panel = document.createElement('div');
+            const title = document.createElement('h4');
+            const pre = document.createElement('pre');
+            panel.className = label === 'Request' ? 'request-panel' : 'response-panel';
+            title.textContent = label;
+            pre.dataset.rawHttp = '';
+            pre.textContent = raw || '';
+            panel.append(title, pre);
+            const download = document.createElement('button');
+            download.type = 'button';
+            download.className = 'nes-btn download-icon-btn';
+            download.title = `Download ${label.toLowerCase()} .txt`;
+            download.setAttribute('aria-label', download.title);
+            download.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M12 3v12m-5-5 5 5 5-5M5 16v5h14v-5"/></svg>';
+            const source = new URL(details.dataset.rawUrl, window.location.href).pathname
+              .split('/').filter(Boolean).slice(-2).join('-');
+            download.addEventListener('click', () => {
+              downloadHttpText(raw || '', `${source}-${label.toLowerCase()}.txt`);
+            });
+            panel.appendChild(download);
+            grid.appendChild(panel);
+          }
+          body.replaceChildren(grid);
+          body.classList.remove('nes-text', 'is-error');
+          details.dataset.rawLoaded = 'true';
+          initializeHttpHighlighting();
+        } catch (error) {
+          body.textContent = error.message || 'Unable to load request and response.';
+          body.classList.add('nes-text', 'is-error');
+        } finally {
+          delete details.dataset.rawLoading;
+          asyncNavigation.setBusy(false);
+        }
+      }
+
+      document.addEventListener('click', (event) => {
+        const summary = event.target.closest('.async-raw-details > summary');
+        if (!summary) {
+          return;
+        }
+        const details = summary.parentElement;
+        if (!details.open) {
+          loadAsyncRawDetails(details);
+        }
+      });
+
+      document.addEventListener('click', (event) => {
+        const row = event.target.closest('[data-raw-toggle-row]');
+        if (!row || event.target.closest('a, button, input, select, textarea, label, summary, form')) {
+          return;
+        }
+        const rawRow = row.nextElementSibling;
+        const details = rawRow?.querySelector?.('.async-raw-details');
+        if (!details) {
+          return;
+        }
+        details.open = !details.open;
+        if (details.open) {
+          loadAsyncRawDetails(details);
+        }
+      });
+
+      function initializeDashboardEvidence() {
+        document.querySelectorAll('.dashboard-evidence[data-evidence-url]').forEach((details) => {
+          if (details.dataset.evidenceReady === 'true') {
+            return;
+          }
+          details.dataset.evidenceReady = 'true';
+          details.addEventListener('toggle', async () => {
+            if (!details.open || details.dataset.evidenceLoaded === 'true') {
+              return;
+            }
+            const body = details.querySelector('.dashboard-evidence-body');
+            asyncNavigation.setBusy(true);
+            try {
+              const response = await fetch(details.dataset.evidenceUrl, {
+                headers: {'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest'},
+              });
+              const payload = await response.json();
+              if (!response.ok || !payload.ok) {
+                throw new Error(payload.error || `HTTP ${response.status}`);
+              }
+              const grid = document.createElement('div');
+              grid.className = 'raw-grid dashboard-raw-grid';
+              for (const [label, raw] of [['Request', payload.request_raw], ['Response', payload.response_raw]]) {
+                const panel = document.createElement('div');
+                const title = document.createElement('h4');
+                const pre = document.createElement('pre');
+                title.textContent = label;
+                pre.className = 'dashboard-raw';
+                pre.dataset.rawHttp = '';
+                if (details.dataset.evidenceLocation === label && details.dataset.evidenceFinding) {
+                  pre.dataset.finding = details.dataset.evidenceFinding;
+                }
+                pre.textContent = raw || '';
+                panel.append(title, pre);
+                grid.appendChild(panel);
+              }
+              body.replaceChildren(grid);
+              details.dataset.evidenceLoaded = 'true';
+              initializeHttpHighlighting();
+            } catch (error) {
+              body.textContent = error.message || 'Unable to load request and response.';
+              body.classList.add('nes-text', 'is-error');
+            } finally {
+              asyncNavigation.setBusy(false);
+            }
+          });
+        });
+      }
+
+      function initializeRepeaterTabs() {
+        document.querySelectorAll('.repeater-workspace').forEach((workspace) => {
+          if (workspace.dataset.tabsReady === 'true') {
+            return;
+          }
+          workspace.dataset.tabsReady = 'true';
+          workspace.addEventListener('click', (event) => {
+            const tab = event.target.closest('[data-repeater-tab]');
+            if (!tab || !workspace.contains(tab)) {
+              return;
+            }
+            const panelId = tab.dataset.repeaterTab;
+            workspace.querySelectorAll('[data-repeater-tab]').forEach((item) => {
+              const active = item === tab;
+              item.classList.toggle('is-active', active);
+              item.setAttribute('aria-selected', active ? 'true' : 'false');
+            });
+            workspace.querySelectorAll('.repeater-record').forEach((panel) => {
+              panel.classList.toggle('is-active', panel.id === panelId);
+            });
+          });
+        });
+      }
+
+      function initializeHttpHighlighting() {
+        document.querySelectorAll('pre[data-raw-http]').forEach((pre) => {
+          if (pre.dataset.highlightReady === 'true') {
+            return;
+          }
+          pre.dataset.highlightReady = 'true';
+          const raw = pre.textContent;
+          const finding = pre.dataset.finding || '';
+          const highlighted = highlightedHttp(raw);
+          pre.innerHTML = finding ? highlightFinding(highlighted, finding) : highlighted;
+        });
+
+        document.querySelectorAll('textarea[data-http-editor]').forEach((textarea) => {
+          if (textarea.dataset.highlightReady === 'true') {
+            syncHttpEditor(textarea);
+            return;
+          }
+          textarea.dataset.highlightReady = 'true';
+          textarea.value = formatHttpJson(textarea.value);
+          const wrapper = document.createElement('div');
+          wrapper.className = 'http-editor';
+          const layer = document.createElement('pre');
+          layer.className = 'http-highlight-layer monospace';
+          textarea.parentNode.insertBefore(wrapper, textarea);
+          wrapper.append(layer, textarea);
+
+          const sync = () => syncHttpEditor(textarea);
+          textarea.addEventListener('input', sync);
+          textarea.addEventListener('scroll', () => {
+            layer.scrollTop = textarea.scrollTop;
+            layer.scrollLeft = textarea.scrollLeft;
+          });
+          sync();
+        });
+
+        if (document.body.dataset.httpEditorResizeReady !== 'true') {
+          document.body.dataset.httpEditorResizeReady = 'true';
+          window.addEventListener('resize', () => {
+            document.querySelectorAll('textarea[data-http-editor][data-auto-grow]').forEach(syncHttpEditor);
+          });
+        }
+      }
+
+      function syncHttpEditor(textarea) {
+        const layer = textarea.closest('.http-editor')?.querySelector('.http-highlight-layer');
+        if (!layer) {
+          return;
+        }
+        layer.innerHTML = highlightedHttp(textarea.value) || '<br>';
+        if (textarea.hasAttribute('data-auto-grow')) {
+          textarea.style.height = 'auto';
+          textarea.style.height = `${textarea.scrollHeight}px`;
+        }
+        layer.scrollTop = textarea.scrollTop;
+        layer.scrollLeft = textarea.scrollLeft;
+      }
+
+      function highlightedHttp(raw) {
+        const formatted = formatHttpJson(raw);
+        const parts = splitRawHttp(formatted);
+        if (!parts) {
+          return highlightJsonKeys(formatted);
+        }
+        const head = highlightHttpHead(parts.head);
+        if (!looksLikeJson(parts.body)) {
+          return `${head}${escapeHtml(parts.separator)}${escapeHtml(parts.body)}`;
+        }
+        return `${head}${escapeHtml(parts.separator)}${highlightJsonKeys(parts.body)}`;
+      }
+
+      function highlightFinding(highlighted, finding) {
+        const escapedFinding = escapeHtml(finding);
+        if (!escapedFinding || !highlighted.includes(escapedFinding)) {
+          return highlighted;
+        }
+        return highlighted.split(escapedFinding).join(`<mark class="http-finding">${escapedFinding}</mark>`);
+      }
+
+      function formatHttpJson(raw) {
+        const parts = splitRawHttp(raw);
+        if (!parts) {
+          return formatJsonText(raw);
+        }
+        const body = formatJsonText(parts.body);
+        return `${parts.head}${parts.separator}${body}`;
+      }
+
+      function splitRawHttp(raw) {
+        const match = raw.match(/\r?\n\r?\n/);
+        if (!match) {
+          return null;
+        }
+        const index = match.index;
+        return {
+          head: raw.slice(0, index),
+          separator: match[0],
+          body: raw.slice(index + match[0].length),
+        };
+      }
+
+      function formatJsonText(text) {
+        const trimmed = text.trim();
+        if (!looksLikeJson(trimmed)) {
+          return text;
+        }
+        try {
+          return JSON.stringify(JSON.parse(trimmed), null, 2);
+        } catch (error) {
+          return text;
+        }
+      }
+
+      function looksLikeJson(text) {
+        const trimmed = text.trim();
+        return trimmed.startsWith('{') || trimmed.startsWith('[');
+      }
+
+      function highlightJsonKeys(text) {
+        return escapeHtml(text).replace(/("(?:\\.|[^"\\])*")(\s*:)/g, '<span class="json-key">$1</span><span class="json-punctuation">$2</span>');
+      }
+
+      function highlightHttpHead(head) {
+        return head
+          .replace(/\r\n/g, '\n')
+          .split('\n')
+          .map((line, index) => (index === 0 ? highlightHttpStartLine(line) : highlightHttpHeader(line)))
+          .join('\n');
+      }
+
+      function highlightHttpStartLine(line) {
+        const request = line.match(/^([A-Z]+)(\s+)(\S+)(\s+)(HTTP\/[0-9.]+)$/);
+        if (request) {
+          return [
+            span('http-method', request[1]),
+            escapeHtml(request[2]),
+            span('http-target', request[3]),
+            escapeHtml(request[4]),
+            span('http-version', request[5]),
+          ].join('');
+        }
+
+        const response = line.match(/^(HTTP(?:\/[0-9.]+)?)(\s+)(\d{3})(.*)$/);
+        if (response) {
+          return [
+            span('http-version', response[1]),
+            escapeHtml(response[2]),
+            span(httpStatusClass(response[3]), response[3]),
+            escapeHtml(response[4]),
+          ].join('');
+        }
+
+        return escapeHtml(line);
+      }
+
+      function highlightHttpHeader(line) {
+        const match = line.match(/^([^:\s][^:]*)(:)(\s*)(.*)$/);
+        if (!match) {
+          return escapeHtml(line);
+        }
+        return [
+          span('http-header-name', match[1]),
+          span('http-punctuation', match[2]),
+          escapeHtml(match[3]),
+          span('http-header-value', match[4]),
+        ].join('');
+      }
+
+      function httpStatusClass(status) {
+        if (status.startsWith('2')) {
+          return 'http-status is-success';
+        }
+        if (status.startsWith('3')) {
+          return 'http-status is-redirect';
+        }
+        if (status.startsWith('4') || status.startsWith('5')) {
+          return 'http-status is-error';
+        }
+        return 'http-status';
+      }
+
+      function span(className, text) {
+        return `<span class="${className}">${escapeHtml(text)}</span>`;
+      }
+
+      function escapeHtml(text) {
+        return text
+          .replaceAll('&', '&amp;')
+          .replaceAll('<', '&lt;')
+          .replaceAll('>', '&gt;');
+      }
+
+      const remoteFileBrowser = (() => {
+        let targetInput = null;
+        let apiUrl = null;
+        let browser = null;
+
+        function ensureBrowser() {
+          if (browser) {
+            return browser;
+          }
+          browser = document.createElement('section');
+          browser.className = 'remote-browser';
+          browser.hidden = true;
+          browser.innerHTML = `
+            <div class="remote-browser-dialog" role="dialog" aria-modal="true" aria-labelledby="remote-browser-title">
+              <div class="remote-browser-head">
+                <h3 id="remote-browser-title">Remote files</h3>
+                <button class="nes-btn icon-btn" type="button" title="Close" aria-label="Close" data-remote-browser-close>x</button>
+              </div>
+              <div class="remote-browser-path monospace" data-remote-browser-path>/sdcard</div>
+              <div class="remote-browser-actions">
+                <button class="nes-btn mini-btn" type="button" data-remote-browser-up>Up</button>
+                <button class="nes-btn mini-btn" type="button" data-remote-browser-refresh>Refresh</button>
+                <button class="nes-btn mini-btn is-primary" type="button" data-remote-browser-select-current>Select path</button>
+              </div>
+              <div class="remote-browser-list" data-remote-browser-list></div>
+            </div>
+          `;
+          document.body.appendChild(browser);
+          browser.addEventListener('click', (event) => {
+            if (event.target === browser || event.target.closest('[data-remote-browser-close]')) {
+              closeBrowser();
+              return;
+            }
+            if (event.target.closest('[data-remote-browser-up]')) {
+              loadRemotePath(browser.dataset.parentPath || '/');
+              return;
+            }
+            if (event.target.closest('[data-remote-browser-refresh]')) {
+              loadRemotePath(browser.dataset.currentPath || '/sdcard');
+              return;
+            }
+            if (event.target.closest('[data-remote-browser-select-current]')) {
+              selectPath(browser.dataset.currentPath || '/sdcard');
+              return;
+            }
+            const row = event.target.closest('[data-remote-path]');
+            if (!row) {
+              return;
+            }
+            if (row.dataset.remoteDir === 'true') {
+              loadRemotePath(row.dataset.remotePath);
+            } else {
+              selectPath(row.dataset.remotePath);
+            }
+          });
+          return browser;
+        }
+
+        function openBrowser(button) {
+          const form = button.closest('form');
+          targetInput = form?.querySelector('[data-remote-path-input]') || document.querySelector('[data-remote-path-input]');
+          apiUrl = button.dataset.apiUrl;
+          const startPath = targetInput?.value.trim() || '/sdcard';
+          ensureBrowser().hidden = false;
+          loadRemotePath(startPath);
+        }
+
+        function closeBrowser() {
+          if (browser) {
+            browser.hidden = true;
+          }
+        }
+
+        function selectPath(path) {
+          if (targetInput) {
+            targetInput.value = path;
+            targetInput.dispatchEvent(new Event('input', {bubbles: true}));
+          }
+          closeBrowser();
+        }
+
+        function renderEntries(payload) {
+          const pathNode = browser.querySelector('[data-remote-browser-path]');
+          const list = browser.querySelector('[data-remote-browser-list]');
+          browser.dataset.currentPath = payload.path;
+          browser.dataset.parentPath = payload.parent;
+          pathNode.textContent = payload.path;
+          list.innerHTML = '';
+
+          const up = document.createElement('button');
+          up.className = 'remote-browser-row';
+          up.type = 'button';
+          up.dataset.remotePath = payload.parent;
+          up.dataset.remoteDir = 'true';
+          up.innerHTML = '<span class="monospace">../</span><strong>dir</strong>';
+          list.appendChild(up);
+
+          if (!payload.entries.length) {
+            const empty = document.createElement('p');
+            empty.className = 'remote-browser-empty';
+            empty.textContent = 'No entries.';
+            list.appendChild(empty);
+            return;
+          }
+
+          for (const entry of payload.entries) {
+            const row = document.createElement('button');
+            row.className = 'remote-browser-row';
+            row.type = 'button';
+            row.dataset.remotePath = entry.path;
+            row.dataset.remoteDir = entry.is_dir ? 'true' : 'false';
+            const name = document.createElement('span');
+            name.className = 'monospace';
+            name.textContent = entry.is_dir ? `${entry.name}/` : entry.name;
+            const type = document.createElement('strong');
+            type.textContent = entry.is_dir ? 'dir' : 'file';
+            row.append(name, type);
+            list.appendChild(row);
+          }
+        }
+
+        async function loadRemotePath(path) {
+          const panel = ensureBrowser();
+          const list = panel.querySelector('[data-remote-browser-list]');
+          list.innerHTML = '<p class="remote-browser-empty">Loading...</p>';
+          try {
+            const url = new URL(apiUrl, window.location.href);
+            url.searchParams.set('path', path);
+            const response = await fetch(url, {
+              headers: {
+                'Accept': 'application/json',
+                'X-Requested-With': 'XMLHttpRequest',
+              },
+            });
+            const payload = await response.json();
+            if (!response.ok || !payload.ok) {
+              throw new Error(payload.error || `HTTP ${response.status}`);
+            }
+            renderEntries(payload);
+          } catch (error) {
+            list.innerHTML = '';
+            const message = document.createElement('p');
+            message.className = 'remote-browser-empty nes-text is-error';
+            message.textContent = error.message || 'Unable to load remote files.';
+            list.appendChild(message);
+          }
+        }
+
+        document.addEventListener('click', (event) => {
+          const button = event.target.closest('[data-remote-browser-open]');
+          if (!button) {
+            return;
+          }
+          event.preventDefault();
+          openBrowser(button);
+        });
+      })();
+
+      async function showCurl(button) {
+        const original = button.textContent;
+        const target = document.getElementById(button.dataset.curlTarget);
+        const output = target ? target.querySelector('[data-curl-output]') : null;
+        if (!target || !output) {
+          return;
+        }
+        button.textContent = 'Generating';
+        try {
+          const response = await fetch(button.dataset.curlUrl);
+          const payload = await response.json();
+          if (!response.ok) {
+            throw new Error(payload.error || 'Unable to build curl command.');
+          }
+          output.textContent = payload.curl;
+          target.open = true;
+        } catch (error) {
+          output.textContent = error.message || 'Unable to build curl command.';
+          target.open = true;
+        } finally {
+          button.textContent = original;
+        }
+      }
+
+      initializeBoardEnhancements();
+    </script>
+    <script src="{{ url_for('static', filename='ios-install.js') }}"></script>
+  </body>
+</html>

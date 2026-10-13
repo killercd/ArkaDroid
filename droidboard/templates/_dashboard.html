@@ -1,0 +1,168 @@
+<section class="panel nes-container with-title">
+  <h2 class="title">Dashboard</h2>
+  <nav class="dashboard-section-bar" aria-label="Dashboard sections">
+    {% for section_key, section_label in dashboard_sections %}
+      <label class="dashboard-section-flag {{ 'is-active' if dashboard_section == section_key else '' }}">
+        <input type="checkbox" {{ 'checked' if dashboard_section == section_key else '' }} onchange="window.location.href='{{ url_for('index', project_id=project.id, tab='dashboard') if dashboard_section == section_key else url_for('index', project_id=project.id, tab='dashboard', dashboard_section=section_key) }}'">
+        <span>{{ section_label }}</span>
+      </label>
+    {% endfor %}
+  </nav>
+
+  {% if not dashboard_section %}
+    <section class="empty-state nes-container dashboard-lazy-empty">Select a section above. Data is loaded only for the active section.</section>
+  {% elif dashboard_section == 'status' %}
+    {% if dashboard_status_groups %}
+      <div class="dashboard-status-grid">
+        {% for group in dashboard_status_groups %}
+          <a class="dashboard-status-card {{ 'is-active' if dashboard_selected_status == group.status else '' }}" href="{{ url_for('index', project_id=project.id, tab='dashboard', dashboard_section='status', dashboard_status=group.status) }}">
+            <span class="dashboard-status-code status-{{ group.status[0] if group.status and group.status[0].isdigit() else 'unknown' }}">{{ group.status }}</span><span>{{ group.count }} request{{ '' if group.count == 1 else 's' }}</span>
+          </a>
+        {% endfor %}
+      </div>
+      {% if dashboard_selected_group %}
+        <section class="dashboard-request-panel">
+          <div class="dashboard-request-head"><h3>Status {{ dashboard_selected_group.status }}</h3><span>{{ dashboard_selected_group.count }} requests</span></div>
+          <div class="table-scroll dashboard-request-list"><table class="nes-table is-bordered compact-table dashboard-table">
+            <thead><tr><th>ID</th><th>Method</th><th>URL</th><th>Repeater</th></tr></thead>
+            <tbody>{% for row in dashboard_selected_group.rows %}<tr><td>#{{ row.id }}</td><td>{{ row.method }}</td><td class="text-left path-cell"><code>{{ dashboard_exchange_url(row) }}</code></td><td><form method="post" action="{{ url_for('exchange_to_repeater', exchange_id=row.id) }}"><button class="nes-btn is-success mini-btn" type="submit">Send</button></form></td></tr>{% endfor %}</tbody>
+          </table></div>
+        </section>
+      {% endif %}
+    {% else %}<section class="empty-state nes-container">No requests.</section>{% endif %}
+
+  {% elif dashboard_section == 'secrets' %}
+    <div class="dashboard-request-head"><h3>Possible secrets</h3><span>{{ dashboard_secret_count }} findings</span></div>
+    {% if dashboard_secret_groups %}
+      <div class="dashboard-summary-grid">
+        {% for group in dashboard_secret_groups %}<a class="dashboard-summary-card {{ 'is-active' if dashboard_selected_secret == group.key else '' }}" href="{{ url_for('index', project_id=project.id, tab='dashboard', dashboard_section='secrets') if dashboard_selected_secret == group.key else url_for('index', project_id=project.id, tab='dashboard', dashboard_section='secrets', dashboard_secret=group.key) }}"><span>{{ group.label }}</span><strong>{{ group.count }}</strong></a>{% endfor %}
+      </div>
+      {% if dashboard_selected_secret_group %}
+        <section class="dashboard-detail-panel"><div class="dashboard-request-head"><h3>{{ dashboard_selected_secret_group.label }}</h3><span>{{ dashboard_selected_secret_group.count }} {{ 'responses' if dashboard_selected_secret == 'auth_endpoints' else 'findings' }}</span></div><div class="dashboard-evidence-list">
+          {% if dashboard_selected_secret == 'auth_endpoints' and not dashboard_selected_secret_group.findings %}<p class="dashboard-analysis-empty">No authentication headers found in responses.</p>{% endif %}
+          {% for finding in dashboard_selected_secret_group.findings %}<details class="dashboard-evidence" data-evidence-url="{{ url_for('dashboard_exchange_raw', exchange_id=finding.row.id, project_id=project.id) }}" data-evidence-finding="{{ finding.match }}" data-evidence-location="{{ finding.location }}"><summary><span><strong>#{{ finding.row.id }}</strong> · {{ finding.row.method }} · <code>{{ dashboard_exchange_url(finding.row) }}</code> · {{ finding.location }} · {{ finding.label }}</span><code>{{ finding.value }}</code></summary><div class="dashboard-evidence-meta"><span>Found in {{ finding.location }}</span><form method="post" action="{{ url_for('exchange_to_repeater', exchange_id=finding.row.id) }}"><button class="nes-btn is-success mini-btn" type="submit">Send to Repeater</button></form></div><div class="dashboard-evidence-body"><p class="dashboard-analysis-empty">Open to load request and response.</p></div></details>{% endfor %}
+        </div></section>
+      {% endif %}
+    {% else %}<p class="dashboard-analysis-empty">No possible secrets found.</p>{% endif %}
+
+  {% elif dashboard_section == 'api' %}
+    <div class="dashboard-request-head"><h3>API JSON / XML</h3><span>{{ dashboard_api_count }} calls</span></div>
+    {% if dashboard_api_rows %}<section class="dashboard-detail-panel dashboard-evidence-list">
+      {% for api in dashboard_api_rows %}<details class="dashboard-evidence" data-evidence-url="{{ url_for('dashboard_exchange_raw', exchange_id=api.row.id, project_id=project.id) }}"><summary><span><strong>#{{ api.row.id }}</strong> · {{ api.row.method }} · <code>{{ dashboard_exchange_url(api.row) }}</code></span><span>{% for format in api.formats %}<span class="dashboard-format-badge">{{ format }}</span>{% endfor %}</span></summary><div class="dashboard-evidence-meta"><span>Content-Type in {{ api.locations|join(' / ') }} · Status {{ api.row.status_code }}</span><form method="post" action="{{ url_for('exchange_to_repeater', exchange_id=api.row.id) }}"><button class="nes-btn is-success mini-btn" type="submit">Send to Repeater</button></form></div><div class="dashboard-evidence-body"><p class="dashboard-analysis-empty">Open to load request and response.</p></div></details>{% endfor %}
+    </section>{% else %}<p class="dashboard-analysis-empty">No JSON or XML Content-Type found.</p>{% endif %}
+
+  {% elif dashboard_section == 'authorize' %}
+    <div class="dashboard-request-head"><h3>Authorize</h3></div>
+    <div class="dashboard-summary-grid">
+      {% for category in dashboard_authorize_categories %}
+        <a class="dashboard-summary-card {{ 'is-active' if dashboard_selected_authorize == category.key else '' }}" href="{{ url_for('index', project_id=project.id, tab='dashboard', dashboard_section='authorize') if dashboard_selected_authorize == category.key else url_for('index', project_id=project.id, tab='dashboard', dashboard_section='authorize', dashboard_authorize=category.key) }}"><span>{{ category.label }}</span><strong>{{ category.groups|length }}</strong></a>
+      {% endfor %}
+    </div>
+    {% if dashboard_selected_authorize_category %}
+    <section class="dashboard-detail-panel">
+    <div class="dashboard-request-head"><h3>{{ dashboard_selected_authorize_category.label }}</h3><span>{{ dashboard_authorize_groups|length }} groups</span></div>
+    <p class="dashboard-analysis-empty">{{ 'Same HTTP status and response body' if dashboard_selected_authorize == 'same' else 'Different HTTP status or response body' }} for different users of the same source request.</p>
+    <div class="dashboard-evidence-list">
+    {% for group in dashboard_authorize_groups %}
+      <details class="dashboard-evidence">
+        <summary><span><strong>#{{ group.source_exchange_id }}</strong> · {{ group.method }} · <code>{{ group.url }}</code></span><span>{{ group.users|join(', ') }} · Status {{ group.rows|map(attribute='status_code')|unique|join(', ') }}</span></summary>
+        <div class="dashboard-detail-panel dashboard-evidence-list dashboard-authorize-results">
+          {% for row in group.rows %}
+            <details class="dashboard-evidence" data-evidence-url="{{ url_for('raw_exchange', source_type='authorize', source_id=row.id, project_id=project.id) }}">
+              <summary><span><strong>{{ row.user_name }}</strong> · #{{ row.id }} · {{ row.method }} · <code>{{ row.url }}</code></span></summary>
+              <div class="dashboard-evidence-meta"><span>Status {{ row.status_code }} · {{ row.response_size }} bytes</span><form method="post" action="{{ url_for('authorize_to_repeater', exchange_id=row.id) }}"><button class="nes-btn is-success mini-btn" type="submit">Send to Repeater</button></form></div>
+              <div class="dashboard-evidence-body"><p class="dashboard-analysis-empty">Open to load request and response.</p></div>
+            </details>
+          {% endfor %}
+        </div>
+      </details>
+    {% else %}<p class="dashboard-analysis-empty">{{ 'No matching responses' if dashboard_selected_authorize == 'same' else 'No different responses' }} for different authorize users.</p>{% endfor %}
+    </div>
+    </section>
+    {% endif %}
+
+  {% elif dashboard_section == 'fuzzer' %}
+    <div class="dashboard-request-head"><h3>Fuzzer</h3><span>{{ dashboard_fuzzer_groups|sum(attribute='count') }} results</span></div>
+    {% if dashboard_fuzzer_groups %}
+      <div class="dashboard-status-grid">
+        {% for group in dashboard_fuzzer_groups %}
+          <a class="dashboard-status-card {{ 'is-active' if dashboard_selected_fuzzer == group.key else '' }}" href="{{ url_for('index', project_id=project.id, tab='dashboard', dashboard_section='fuzzer') if dashboard_selected_fuzzer == group.key else url_for('index', project_id=project.id, tab='dashboard', dashboard_section='fuzzer', dashboard_fuzzer=group.key) }}">
+            <span class="dashboard-status-code status-{{ group.status[0] if group.status and group.status[0].isdigit() else 'unknown' }}">{{ group.status }}</span>
+            <span>{{ group.size }} bytes · {{ group.count }} result{{ '' if group.count == 1 else 's' }}</span>
+          </a>
+        {% endfor %}
+      </div>
+      {% if dashboard_selected_fuzzer_group %}
+        <section class="dashboard-detail-panel">
+          <div class="dashboard-request-head"><h3>Status {{ dashboard_selected_fuzzer_group.status }} · {{ dashboard_selected_fuzzer_group.size }} bytes</h3><span>{{ dashboard_selected_fuzzer_group.count }} result{{ '' if dashboard_selected_fuzzer_group.count == 1 else 's' }}</span></div>
+          <div class="dashboard-evidence-list">
+            {% for row in dashboard_selected_fuzzer_group.rows %}
+              <details class="dashboard-evidence" data-evidence-url="{{ url_for('fuzzer_result_raw', job_id=row.job.id, result_index=row.index, project_id=project.id) }}">
+                <summary><span><strong>Job #{{ row.job.id }} / #{{ row.index }}</strong> · {{ row.source }}:{{ row.name }}={{ row.value }} · <code>{{ row.url }}</code></span><span>{{ row.duration_ms }} ms</span></summary>
+                <div class="dashboard-evidence-meta"><span>Status {{ row.status_code }} · {{ row.size }} bytes{% if row.error %} · {{ row.error }}{% endif %}</span></div>
+                <div class="dashboard-evidence-body"><p class="dashboard-analysis-empty">Open to load request and response.</p></div>
+              </details>
+            {% endfor %}
+          </div>
+        </section>
+      {% endif %}
+    {% else %}<p class="dashboard-analysis-empty">No fuzzer results.</p>{% endif %}
+
+  {% elif dashboard_section == 'reflector' %}
+    <div class="dashboard-request-head"><h3>Reflector</h3><span>{{ dashboard_reflector_count }} reflected value{{ '' if dashboard_reflector_count == 1 else 's' }}</span></div>
+    {% if dashboard_reflector_groups %}
+      <div class="dashboard-summary-grid">
+        {% for group in dashboard_reflector_groups %}
+          <a class="dashboard-summary-card {{ 'is-active' if dashboard_selected_reflector == group.key else '' }}" href="{{ url_for('index', project_id=project.id, tab='dashboard', dashboard_section='reflector') if dashboard_selected_reflector == group.key else url_for('index', project_id=project.id, tab='dashboard', dashboard_section='reflector', dashboard_reflector=group.key) }}"><span>{{ group.label }}</span><strong>{{ group.count }}</strong></a>
+        {% endfor %}
+      </div>
+      {% if dashboard_selected_reflector_group %}
+        <section class="dashboard-detail-panel">
+          <div class="dashboard-request-head"><h3>{{ dashboard_selected_reflector_group.label }}</h3><span>{{ dashboard_selected_reflector_group.count }} finding{{ '' if dashboard_selected_reflector_group.count == 1 else 's' }}</span></div>
+          <div class="dashboard-evidence-list">
+            {% for finding in dashboard_selected_reflector_group.findings %}
+              <details class="dashboard-evidence" data-evidence-url="{{ url_for('dashboard_exchange_raw', exchange_id=finding.row.id, project_id=project.id) }}" data-evidence-finding="{{ finding.match }}" data-evidence-location="Response">
+                <summary><span><strong>#{{ finding.row.id }}</strong> · {{ finding.row.method }} · <code>{{ dashboard_exchange_url(finding.row) }}</code> · {{ finding.name }}</span><code>{{ finding.value }}</code></summary>
+                <div class="dashboard-evidence-meta"><span>{{ dashboard_selected_reflector_group.label }} value reflected in response body · Status {{ finding.row.status_code }}</span><form method="post" action="{{ url_for('exchange_to_repeater', exchange_id=finding.row.id) }}"><button class="nes-btn is-success mini-btn" type="submit">Send to Repeater</button></form></div>
+                <div class="dashboard-evidence-body"><p class="dashboard-analysis-empty">Open to load request and response.</p></div>
+              </details>
+            {% endfor %}
+          </div>
+        </section>
+      {% endif %}
+    {% else %}<p class="dashboard-analysis-empty">No reflected query, POST, or JSON values found in response bodies.</p>{% endif %}
+
+  {% elif dashboard_section == 'error' %}
+    <div class="dashboard-request-head"><h3>Error</h3><span>{{ dashboard_error_count }} finding{{ '' if dashboard_error_count == 1 else 's' }}</span></div>
+    {% if dashboard_error_groups %}
+      <div class="dashboard-summary-grid">
+        {% for group in dashboard_error_groups %}
+          <a class="dashboard-summary-card {{ 'is-active' if dashboard_selected_error == group.key else '' }}" href="{{ url_for('index', project_id=project.id, tab='dashboard', dashboard_section='error') if dashboard_selected_error == group.key else url_for('index', project_id=project.id, tab='dashboard', dashboard_section='error', dashboard_error=group.key) }}"><span>{{ group.label }}</span><strong>{{ group.count }}</strong></a>
+        {% endfor %}
+      </div>
+      {% if dashboard_selected_error_group %}
+        <section class="dashboard-detail-panel">
+          <div class="dashboard-request-head"><h3>{{ dashboard_selected_error_group.label }}</h3><span>{{ dashboard_selected_error_group.count }} response{{ '' if dashboard_selected_error_group.count == 1 else 's' }}</span></div>
+          <div class="dashboard-evidence-list">
+            {% for finding in dashboard_selected_error_group.findings %}
+              <details class="dashboard-evidence" data-evidence-url="{{ url_for('dashboard_exchange_raw', exchange_id=finding.row.id, project_id=project.id) }}" data-evidence-finding="{{ finding.match }}" data-evidence-location="Response">
+                <summary><span><strong>#{{ finding.row.id }}</strong> · {{ finding.row.method }} · <code>{{ dashboard_exchange_url(finding.row) }}</code></span><code>{{ finding.value }}</code></summary>
+                <div class="dashboard-evidence-meta"><span>Status {{ finding.row.status_code }} · {{ finding.row.response_size }} bytes</span><form method="post" action="{{ url_for('exchange_to_repeater', exchange_id=finding.row.id) }}"><button class="nes-btn is-success mini-btn" type="submit">Send to Repeater</button></form></div>
+                <div class="dashboard-evidence-body"><p class="dashboard-analysis-empty">Open to load request and response.</p></div>
+              </details>
+            {% endfor %}
+          </div>
+        </section>
+      {% endif %}
+    {% else %}<p class="dashboard-analysis-empty">No HTTP 500 responses or known error signatures found.</p>{% endif %}
+
+  {% elif dashboard_section == 'hidden' %}
+    <div class="dashboard-request-head"><h3>Hidden endpoints</h3><span>{{ dashboard_hidden_count }} endpoints found only in JavaScript or internal pages</span></div>
+    {% if dashboard_hidden_rows %}<div class="table-scroll"><table class="nes-table is-bordered compact-table dashboard-hidden-table">
+      <thead><tr><th>Source exchange</th><th>Found in</th><th>Endpoint</th><th>Repeater</th></tr></thead>
+      <tbody>{% for endpoint in dashboard_hidden_rows %}<tr><td class="text-left path-cell"><strong>#{{ endpoint.source.id }}</strong> · <code>{{ dashboard_exchange_url(endpoint.source) }}</code></td><td>{{ endpoint.source_kind }}</td><td class="text-left path-cell"><code>{{ endpoint.url }}</code></td><td><form method="post" action="{{ url_for('exchange_to_repeater', exchange_id=endpoint.source.id) }}"><button class="nes-btn is-success mini-btn" type="submit">Source</button></form></td></tr>{% endfor %}</tbody>
+    </table></div>
+      {% if dashboard_hidden_page_count > 1 %}<nav class="pagination-row">{% if dashboard_hidden_page > 1 %}<a class="nes-btn" href="{{ url_for('index', project_id=project.id, tab='dashboard', dashboard_section='hidden', dashboard_hidden_page=dashboard_hidden_page - 1) }}">Previous</a>{% endif %}<span>Page {{ dashboard_hidden_page }} / {{ dashboard_hidden_page_count }}</span>{% if dashboard_hidden_page < dashboard_hidden_page_count %}<a class="nes-btn" href="{{ url_for('index', project_id=project.id, tab='dashboard', dashboard_section='hidden', dashboard_hidden_page=dashboard_hidden_page + 1) }}">Next</a>{% endif %}</nav>{% endif %}
+    {% else %}<p class="dashboard-analysis-empty">No unobserved endpoints found in JavaScript or HTML responses.</p>{% endif %}
+  {% endif %}
+</section>

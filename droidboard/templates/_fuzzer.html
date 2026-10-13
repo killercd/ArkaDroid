@@ -1,0 +1,141 @@
+<section class="panel nes-container with-title">
+  <h2 class="title">Fuzzer</h2>
+  {% set prefill = fuzzer_prefill or {} %}
+  <form method="post" enctype="multipart/form-data" action="{{ url_for('start_fuzzer', project_id=project.id, tab='fuzzer') }}" class="fuzzer-form">
+    <label>
+      <span>Range</span>
+      <input class="nes-input" name="range" value="{{ prefill.get('range', '1-500') }}">
+    </label>
+    <label>
+      <span>Threads</span>
+      <input class="nes-input" type="number" name="max_thread" value="{{ prefill.get('max_thread', 1) }}" min="1">
+    </label>
+    <label>
+      <span>Pause between attempts (ms)</span>
+      <input class="nes-input" type="number" name="delay" value="{{ prefill.get('delay', 0) }}" min="0">
+    </label>
+    <label class="fuzzer-wide">
+      <span>Wordlist file (optional, replaces range)</span>
+      <input class="nes-input" type="file" name="wordlist">
+      <small>UTF-8 text, one value per line. Empty lines are skipped; CR/LF line endings are removed.</small>
+    </label>
+    <label class="fuzzer-wide">
+      <span>Raw request</span>
+      <textarea class="nes-textarea monospace" name="request_raw" rows="8" placeholder="GET /path?query=FUZZ HTTP/1.1&#10;Host: target.example&#10;&#10;">{{ prefill.get('request_raw', '') }}</textarea>
+    </label>
+    <label class="fuzzer-wide">
+      <span>Response matches (optional)</span>
+      <textarea class="nes-textarea monospace" name="response_matches" rows="4" placeholder="error&#10;adodb">{{ prefill.get('response_matches', [])|join('\n') }}</textarea>
+      <small>One literal string per line. Counts non-overlapping occurrences in response headers and body, case-insensitively. Empty and duplicate lines are ignored.</small>
+    </label>
+    <button class="nes-btn is-success" type="submit">Start fuzz</button>
+  </form>
+</section>
+
+<section class="fuzzer-jobs" data-live-panel="fuzzer" data-live-version="{{ fuzzer_live_version }}">
+  {% macro fuzzer_sort_header(job, key, label) -%}
+    {% set next_order = 'desc' if job.result_sort == key and job.result_order == 'asc' else 'asc' %}
+    <a class="sort-link" href="{{ url_for('index', **url_args(('fuzzer_sort_' ~ job.id), key, ('fuzzer_order_' ~ job.id), next_order, ('fuzzer_page_' ~ job.id), 1)) }}">
+      {{ label }}
+      {% if job.result_sort == key %}
+        <span>{{ 'up' if job.result_order == 'asc' else 'down' }}</span>
+      {% endif %}
+    </a>
+  {%- endmacro %}
+  {% for job in fuzzer_jobs %}
+    <article class="fuzzer-job nes-container with-title" data-fuzzer-job="{{ job.id }}">
+      <h3 class="title">Job #{{ job.id }} {{ job.status }}</h3>
+      <div class="fuzzer-job-head">
+        <div class="fuzzer-meta">
+          <span class="metric">{{ job.completed }} / {{ job.total }}</span>
+          <span class="metric">{{ job.config.wordlist_name if 'values' in job.config else job.config.range }}</span>
+          <span class="metric">{{ job.config.max_thread }} threads</span>
+        </div>
+        <div class="button-row">
+          <form method="post" action="{{ url_for('stop_fuzzer', job_id=job.id, project_id=project.id, tab='fuzzer') }}">
+            <button class="nes-btn is-warning mini-btn" type="submit" {% if job.status not in ['running', 'stopping'] %}disabled{% endif %}>Stop</button>
+          </form>
+          <form method="post" action="{{ url_for('restart_fuzzer', job_id=job.id, project_id=project.id, tab='fuzzer') }}">
+            <button class="nes-btn is-primary mini-btn" type="submit">Restart</button>
+          </form>
+          <form method="post" action="{{ url_for('delete_fuzzer', job_id=job.id, project_id=project.id, tab='fuzzer') }}" onsubmit="return confirm('Delete this fuzzer job?')">
+            <button class="nes-btn is-error mini-btn" type="submit">Delete</button>
+          </form>
+        </div>
+      </div>
+      {% if job.error %}<p class="nes-text is-error">{{ job.error }}</p>{% endif %}
+      <details class="fuzzer-results-details" open>
+        <summary>Results</summary>
+        <form method="get" class="filter-grid fuzzer-result-filter">
+          <input type="hidden" name="project_id" value="{{ project.id }}">
+          <input type="hidden" name="tab" value="fuzzer">
+          <input type="hidden" name="fuzzer_sort_{{ job.id }}" value="{{ job.result_sort }}">
+          <input type="hidden" name="fuzzer_order_{{ job.id }}" value="{{ job.result_order }}">
+          <input class="nes-input" name="fuzzer_q_{{ job.id }}" value="{{ job.result_query }}" placeholder="Search all columns">
+          <button class="nes-btn is-primary" type="submit">Search</button>
+        </form>
+        <div class="table-scroll">
+          <table class="nes-table is-bordered compact-table fuzzer-table">
+            <thead>
+              <tr>
+                <th>{{ fuzzer_sort_header(job, 'index', '#') }}</th>
+                <th>{{ fuzzer_sort_header(job, 'source', 'Param') }}</th>
+                <th>{{ fuzzer_sort_header(job, 'value', 'Value') }}</th>
+                <th>{{ fuzzer_sort_header(job, 'status', 'Status') }}</th>
+                <th>{{ fuzzer_sort_header(job, 'size', 'Size') }}</th>
+                <th>{{ fuzzer_sort_header(job, 'duration', 'Delay (ms)') }}</th>
+                <th>{{ fuzzer_sort_header(job, 'url', 'URL') }}</th>
+                <th>{{ fuzzer_sort_header(job, 'error', 'Error') }}</th>
+                {% for term in job.config.get('response_matches', []) %}
+                  <th>{{ fuzzer_sort_header(job, 'match:' ~ term, 'Matches: ' ~ term) }}</th>
+                {% endfor %}
+              </tr>
+            </thead>
+            <tbody>
+              {% for row in job.results %}
+                <tr data-raw-toggle-row>
+                  <td>{{ row.index }}</td>
+                  <td>{{ row.source }}:{{ row.name }}</td>
+                  <td>{{ row.value }}</td>
+                  <td>{{ row.status_code }}</td>
+                  <td>{{ row.size }}</td>
+                  <td>{{ row.duration_ms }}</td>
+                  <td class="text-left path-cell">{{ row.url }}</td>
+                  <td class="text-left tiny-cell">{{ row.error or '-' }}</td>
+                  {% for term in job.config.get('response_matches', []) %}
+                    {% set count = row.get('match_counts', {}).get(term, 0) %}
+                    <td>{% if count %}<strong class="nes-text is-error">{{ count }}</strong>{% else %}0{% endif %}</td>
+                  {% endfor %}
+                </tr>
+                <tr class="raw-row">
+                  <td colspan="{{ 8 + job.config.get('response_matches', [])|length }}">
+                    <details class="async-raw-details" data-raw-url="{{ url_for('fuzzer_result_raw', job_id=job.id, result_index=row.index, project_id=project.id) }}">
+                      <summary>Raw request / response</summary>
+                      <div class="async-raw-body"><p class="dashboard-analysis-empty">Open to load request and response.</p></div>
+                    </details>
+                  </td>
+                </tr>
+              {% else %}
+                <tr><td colspan="{{ 8 + job.config.get('response_matches', [])|length }}">No results yet.</td></tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+        <nav class="pagination-row" aria-label="Fuzzer job {{ job.id }} results pagination">
+          <span>
+            Showing page {{ job.result_page }} of {{ job.result_page_count }}
+            ({{ job.result_total }} result{{ '' if job.result_total == 1 else 's' }}, {{ job.result_page_size }} per page)
+          </span>
+          <div class="button-row">
+            <a class="nes-btn mini-btn {{ 'is-disabled' if job.result_page <= 1 else '' }}"
+               href="{{ url_for('index', **url_args(('fuzzer_page_' ~ job.id), job.result_page - 1)) }}">Previous</a>
+            <a class="nes-btn mini-btn {{ 'is-disabled' if job.result_page >= job.result_page_count else '' }}"
+               href="{{ url_for('index', **url_args(('fuzzer_page_' ~ job.id), job.result_page + 1)) }}">Next</a>
+          </div>
+        </nav>
+      </details>
+    </article>
+  {% else %}
+    <section class="empty-state nes-container">No fuzzer jobs.</section>
+  {% endfor %}
+</section>

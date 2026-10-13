@@ -1,0 +1,250 @@
+<section class="panel nes-container with-title mobile-panel">
+  <h2 class="title">Mobile</h2>
+
+  <nav class="tabs mobile-subtabs">
+    <a class="nes-btn {{ 'is-primary' if mobile_os == 'android' else '' }}" href="{{ url_for('index', project_id=project.id, tab='mobile', mobile_os='android') }}">Android</a>
+    <a class="nes-btn {{ 'is-primary' if mobile_os == 'ios' else '' }}" href="{{ url_for('index', project_id=project.id, tab='mobile', mobile_os='ios') }}">iOS</a>
+  </nav>
+
+  {% if mobile_os == 'ios' %}
+  <div class="mobile-grid">
+    <section class="mobile-block mobile-wide" data-ios-install
+             data-job="{{ ios_install_job }}"
+             data-devices-url="{{ url_for('mobile_ios_devices', project_id=project.id) }}"
+             data-install-url="{{ url_for('mobile_ios_install', project_id=project.id) }}"
+             data-job-url="{{ url_for('mobile_ios_install_job', job_id='JOB_ID', project_id=project.id) }}"
+             data-csrf="{{ ios_install_csrf }}">
+      <h3>Install IPA on iPhone / iPad</h3>
+      <p>Connect the device by USB, unlock it and accept “Trust This Computer”. Enable Developer Mode on the device when required.</p>
+      <form data-ios-start class="mobile-form stack-form" method="post" action="{{ url_for('mobile_ios_install', project_id=project.id) }}" enctype="multipart/form-data">
+        <label><span>Upload IPA</span><input class="nes-input" type="file" name="ipa_file" accept=".ipa"></label>
+        <label><span>Or local IPA path</span><input class="nes-input" name="ipa_path" placeholder="/path/app.ipa"></label>
+        <label><span>Installation mode</span><select class="nes-input" name="mode">
+          <option value="apple_id">Sign with Apple ID and install</option>
+          <option value="signed">Install an already signed IPA</option>
+        </select></label>
+        <p>Apple ID mode signs and provisions the app before installation. Free accounts require periodic re-signing; automatic renewal is not enabled.</p>
+        <label><input type="checkbox" name="network"> Wi-Fi connection (already signed IPA; device must be paired first)</label>
+        <div class="button-row"><button type="button" class="nes-btn" data-ios-devices>Find devices</button></div>
+        <label><span>Device</span><select class="nes-input" name="udid" required><option value="">Find and select a device</option></select></label>
+        <p data-ios-device-message role="status"></p>
+        <button class="nes-btn is-success" type="submit">Install IPA</button>
+      </form>
+      <p data-ios-status role="status" aria-live="polite">Ready.</p>
+      <form data-ios-answer class="mobile-form stack-form" hidden autocomplete="off">
+        <label><span data-ios-prompt>Apple authentication</span><input class="nes-input" type="password" name="answer" autocomplete="off" required maxlength="1024"></label>
+        <button type="submit" class="nes-btn is-primary">Continue</button>
+      </form>
+      <button type="button" class="nes-btn is-error" data-ios-cancel hidden>Cancel installation</button>
+      <noscript>JavaScript is required for device discovery and interactive Apple authentication.</noscript>
+    </section>
+    <section class="mobile-block mobile-wide">
+      <h3>IPA static analysis</h3>
+      <form method="post" action="{{ url_for('mobile_ios', action='scan', project_id=project.id) }}" enctype="multipart/form-data" class="mobile-form stack-form">
+        <label>
+          <span>Upload IPA</span>
+          <input class="nes-input" type="file" name="ipa_file" accept=".ipa">
+        </label>
+        <label>
+          <span>Or local path</span>
+          <input class="nes-input" type="text" name="ipa_path" placeholder="/path/app.ipa">
+        </label>
+        <label>
+          <span>Report directory</span>
+          <input class="nes-input" type="text" name="ios_output_dir" placeholder="ios-analysis/app">
+        </label>
+        <div class="button-row">
+          <button class="nes-btn is-success" type="submit">Full scan</button>
+          <button class="nes-btn" type="submit" formaction="{{ url_for('mobile_ios', action='extract', project_id=project.id) }}">Extract</button>
+          <button class="nes-btn" type="submit" formaction="{{ url_for('mobile_ios', action='metadata', project_id=project.id) }}">Metadata</button>
+          <button class="nes-btn is-primary" type="submit" formaction="{{ url_for('mobile_ios', action='plist', project_id=project.id) }}">Plist / ATS</button>
+          <button class="nes-btn" type="submit" formaction="{{ url_for('mobile_ios', action='provisioning', project_id=project.id) }}">Entitlements</button>
+          <button class="nes-btn" type="submit" formaction="{{ url_for('mobile_ios', action='inventory', project_id=project.id) }}">Inventory</button>
+          <button class="nes-btn is-warning" type="submit" formaction="{{ url_for('mobile_ios', action='strings', project_id=project.id) }}">Strings</button>
+        </div>
+      </form>
+    </section>
+  </div>
+  {% else %}
+  <div class="mobile-grid">
+    <section class="mobile-block">
+      <h3>Emulator</h3>
+      <form method="post" action="{{ url_for('mobile', action='start', project_id=project.id) }}" class="mobile-form">
+        <label>
+          <span>AVD</span>
+          <input class="nes-input" type="text" name="avd" value="{{ mobile_default_avd }}">
+        </label>
+        <button class="nes-btn is-success" type="submit">Start</button>
+      </form>
+
+      <form method="post" action="{{ url_for('mobile', action='start-command', project_id=project.id) }}" class="mobile-form stack-form">
+        <label>
+          <span>Emulator command</span>
+          <textarea class="nes-textarea monospace" name="emulator_command" rows="3">{{ mobile_default_emulator_command }}</textarea>
+        </label>
+        <button class="nes-btn is-success" type="submit">Start command</button>
+      </form>
+
+      <div class="button-row mobile-actions">
+        <form method="post" action="{{ url_for('mobile', action='stop', project_id=project.id) }}">
+          <button class="nes-btn is-error" type="submit">Stop</button>
+        </form>
+        <form method="post" action="{{ url_for('mobile', action='root', project_id=project.id) }}">
+          <button class="nes-btn" type="submit">Root</button>
+        </form>
+        <form method="post" action="{{ url_for('mobile', action='remount', project_id=project.id) }}">
+          <button class="nes-btn" type="submit">Remount</button>
+        </form>
+        <form method="post" action="{{ url_for('mobile', action='reboot', project_id=project.id) }}">
+          <button class="nes-btn is-warning" type="submit">Reboot</button>
+        </form>
+      </div>
+
+      <form method="post" action="{{ url_for('mobile', action='logcat', project_id=project.id) }}" class="mobile-form mobile-actions">
+        <label>
+          <span>Logcat lines</span>
+          <input class="nes-input" type="number" name="lines" value="500" min="1" max="5000">
+        </label>
+        <button class="nes-btn is-primary" type="submit">Logcat</button>
+      </form>
+    </section>
+
+    <section class="mobile-block">
+      <h3>Proxy</h3>
+      <form method="post" action="{{ url_for('mobile', action='proxy', project_id=project.id) }}" class="mobile-form">
+        <label>
+          <span>Address</span>
+          <input class="nes-input" type="text" name="proxy_address" value="{{ mobile_default_proxy }}">
+        </label>
+        <button class="nes-btn is-primary" type="submit">Set proxy</button>
+      </form>
+      <form method="post" action="{{ url_for('mobile', action='unset-proxy', project_id=project.id) }}" class="mobile-actions">
+        <button class="nes-btn is-warning" type="submit">Unset proxy</button>
+      </form>
+      <form method="post" action="{{ url_for('mobile', action='firewall-proxy', project_id=project.id) }}" class="mobile-form">
+        <label>
+          <span>Proxy IP</span>
+          <input class="nes-input" type="text" name="firewall_proxy_host" value="{{ mobile_default_proxy_host }}">
+        </label>
+        <label>
+          <span>Port</span>
+          <input class="nes-input" type="number" name="firewall_proxy_port" value="{{ mobile_default_proxy_port }}" min="1" max="65535">
+        </label>
+        <button class="nes-btn is-primary" type="submit">Enable firewall</button>
+      </form>
+      <form method="post" action="{{ url_for('mobile', action='disable-firewall-proxy', project_id=project.id) }}" class="mobile-actions">
+        <button class="nes-btn is-warning" type="submit">Disable firewall</button>
+      </form>
+    </section>
+
+    <section class="mobile-block">
+      <h3>APK</h3>
+      <form method="post" action="{{ url_for('mobile', action='inspect-manifest', project_id=project.id) }}" enctype="multipart/form-data" class="mobile-form stack-form">
+        <label>
+          <span>Upload APK</span>
+          <input class="nes-input" type="file" name="apk_file" accept=".apk">
+        </label>
+        <label>
+          <span>Or local path</span>
+          <input class="nes-input" type="text" name="apk_path" placeholder="/path/app.apk">
+        </label>
+        <label>
+          <span>Unpack destination</span>
+          <input class="nes-input" type="text" name="unpack_destination" placeholder="unpacked/app">
+        </label>
+        <div class="button-row">
+          <button class="nes-btn" type="submit" formaction="{{ url_for('mobile', action='get-pkg', project_id=project.id) }}">Get pkg</button>
+          <button class="nes-btn" type="submit">Inspect manifest</button>
+          <button class="nes-btn is-primary" type="submit" formaction="{{ url_for('mobile', action='unpack-apk', project_id=project.id) }}">Unpack</button>
+          <button class="nes-btn is-success" type="submit" formaction="{{ url_for('mobile', action='install', project_id=project.id) }}">Install</button>
+          <button class="nes-btn is-error" type="submit" formaction="{{ url_for('mobile', action='uninstall', project_id=project.id) }}">Uninstall</button>
+        </div>
+      </form>
+    </section>
+
+    <section class="mobile-block">
+      <h3>Files</h3>
+      <form method="post" action="{{ url_for('mobile', action='push', project_id=project.id) }}" enctype="multipart/form-data" class="mobile-form stack-form">
+        <label>
+          <span>Upload source</span>
+          <input class="nes-input" type="file" name="source_file">
+        </label>
+        <label>
+          <span>Or local source</span>
+          <input class="nes-input" type="text" name="source_path" placeholder="/path/file">
+        </label>
+        <label>
+          <span>Android destination</span>
+          <input class="nes-input" type="text" name="destination" placeholder="/sdcard/file">
+        </label>
+        <button class="nes-btn is-primary" type="submit">Push</button>
+      </form>
+
+      <form method="post" action="{{ url_for('mobile', action='pull', project_id=project.id) }}" class="mobile-form stack-form">
+        <label>
+          <span>Android source</span>
+          <input class="nes-input" type="text" name="source" placeholder="/sdcard/file">
+        </label>
+        <label>
+          <span>Local destination</span>
+          <input class="nes-input" type="text" name="destination" placeholder="pulled-file">
+        </label>
+        <button class="nes-btn" type="submit">Pull</button>
+      </form>
+
+      <form method="post" action="{{ url_for('mobile', action='remote-info', project_id=project.id) }}" class="mobile-form stack-form">
+        <label>
+          <span>Remote path</span>
+          <span class="input-action">
+            <input class="nes-input" type="text" name="source" placeholder="/data/data/package/file" data-remote-path-input>
+            <button class="nes-btn icon-btn remote-browser-open" type="button" title="Browse remote files" aria-label="Browse remote files" data-remote-browser-open data-api-url="{{ url_for('mobile_remote_files', project_id=project.id) }}">
+              <span class="folder-icon" aria-hidden="true"></span>
+            </button>
+          </span>
+        </label>
+        <label>
+          <span>Search pattern</span>
+          <input class="nes-input" type="text" name="pattern" placeholder="token">
+        </label>
+        <div class="button-row">
+          <button class="nes-btn" type="submit">Info</button>
+          <button class="nes-btn is-primary" type="submit" formaction="{{ url_for('mobile', action='remote-view', project_id=project.id) }}">View</button>
+          <button class="nes-btn is-warning" type="submit" formaction="{{ url_for('mobile', action='remote-search', project_id=project.id) }}">Search</button>
+        </div>
+      </form>
+    </section>
+
+    <section class="mobile-block mobile-wide">
+      <h3>Android CA</h3>
+      <div class="button-row mobile-actions">
+        <form method="post" action="{{ url_for('mobile', action='export-ca', project_id=project.id) }}">
+          <button class="nes-btn is-primary" type="submit">Build Android CA</button>
+        </form>
+        <form method="post" action="{{ url_for('mobile', action='upload-ca', project_id=project.id) }}">
+          <button class="nes-btn is-success" type="submit">Upload Android CA</button>
+        </form>
+        <a class="nes-btn" href="{{ url_for('download_android_ca', project_id=project.id) }}">Download Android CA</a>
+      </div>
+      {% if mobile_android_ca_files %}
+        <ul class="nes-list is-disc mobile-ca-list">
+          {% for ca_file in mobile_android_ca_files %}
+            <li><span class="monospace">{{ ca_file }}</span></li>
+          {% endfor %}
+        </ul>
+      {% endif %}
+    </section>
+  </div>
+  {% endif %}
+
+  {% if mobile_result %}
+    <section class="mobile-result">
+      <div class="metric">
+        <strong>{{ mobile_result.title }}</strong>
+        <span>{{ 'ok' if mobile_result.ok else 'error' }}</span>
+      </div>
+      <pre>{{ mobile_result.command }}
+
+{{ mobile_result.output }}</pre>
+    </section>
+  {% endif %}
+</section>

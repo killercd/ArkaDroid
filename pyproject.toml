@@ -1,0 +1,39 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "arkadroid"
+version = "0.1.0"
+description = "DroidBoard web and Windows desktop application"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "SQLAlchemy==2.0.41",
+    "pydantic-settings==2.10.1",
+    "httpx==0.28.1",
+    "cryptography==45.0.5",
+    "Flask==3.1.1",
+    "pexpect==4.9.0; os_name != 'nt'",
+]
+
+[project.optional-dependencies]
+desktop = [
+    "pywebview>=5.4,<7; sys_platform == 'win32'",
+]
+dev = [
+    "pytest==8.4.1",
+]
+
+[tool.setuptools]
+include-package-data = true
+
+[tool.setuptools.packages.find]
+where = [".", "backend"]
+include = ["app*", "droidboard*"]
+
+[tool.setuptools.package-data]
+droidboard = ["templates/*.html", "static/*.css", "static/*.js"]
+
+[tool.pytest.ini_options]
+pythonpath = ["backend"]

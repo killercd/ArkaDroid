@@ -1,0 +1,45 @@
+<section class="panel nes-container with-title intercept-panel" data-live-panel="intercept" data-live-version="{{ intercept_live_version }}">
+  <h2 class="title">Intercept</h2>
+
+  <div class="panel-actions">
+    <form method="post" action="{{ url_for('toggle_intercept', project_id=project.id) }}" class="button-row">
+      <input type="hidden" name="enabled" value="{{ 'off' if intercept_enabled else 'on' }}">
+      <button class="nes-btn {{ 'is-warning' if intercept_enabled else 'is-success' }}" type="submit">
+        {{ 'Disable intercept' if intercept_enabled else 'Enable intercept' }}
+      </button>
+    </form>
+    <form method="post" action="{{ url_for('clear_intercepts', project_id=project.id) }}">
+      <button class="nes-btn is-error" type="submit">Clear resolved</button>
+    </form>
+  </div>
+
+  <div class="metric-row">
+    <span class="metric">mode {{ 'on' if intercept_enabled else 'off' }}</span>
+    <span class="metric">pending {{ intercept_pending }}</span>
+    <span class="metric">total {{ intercept_rows|length }}</span>
+  </div>
+
+  <section class="intercept-list">
+    {% for item in intercept_rows %}
+      <article class="intercept-record nes-container with-title {{ 'pending' if not item.resolved else 'resolved' }}">
+        <h3 class="title">#{{ item.id }} {{ item.direction }} {{ 'pending' if not item.resolved else item.action or 'done' }}</h3>
+        <form method="post" action="{{ url_for('resolve_intercept', item_id=item.id, project_id=project.id) }}">
+          <div class="intercept-meta">
+            <span class="metric">{{ item.method }}</span>
+            <span class="metric">status {{ item.status_code or '-' }}</span>
+            <span class="metric">age {{ (intercept_now - item.created_at)|int }}s</span>
+            <span class="intercept-url">{{ item.url }}</span>
+          </div>
+          <textarea class="nes-textarea monospace" name="raw" rows="14" {% if item.resolved %}readonly{% endif %}>{{ item.edited_raw or item.raw }}</textarea>
+          <div class="button-row record-actions">
+            <button class="nes-btn is-success" name="action" value="forward-original" type="submit" {% if item.resolved %}disabled{% endif %}>Forward original</button>
+            <button class="nes-btn is-primary" name="action" value="forward-edited" type="submit" {% if item.resolved %}disabled{% endif %}>Forward edited</button>
+            <button class="nes-btn is-error" name="action" value="drop" type="submit" {% if item.resolved %}disabled{% endif %}>Drop</button>
+          </div>
+        </form>
+      </article>
+    {% else %}
+      <section class="empty-state nes-container">No intercepted items.</section>
+    {% endfor %}
+  </section>
+</section>
