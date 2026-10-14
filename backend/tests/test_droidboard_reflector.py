@@ -64,6 +64,7 @@ def test_droidboard_toggles_invisible_proxy_mode(tmp_path, monkeypatch):
     proxy_controller.state.active_project_id = None
     proxy_controller.state.running = False
     proxy_controller.state.invisible_proxy = False
+    proxy_controller.state.listen_host = "127.0.0.1"
 
     with testing_session() as db:
         project = Project(name="board", proxy_config={})
@@ -102,6 +103,7 @@ def test_droidboard_proxy_start_saves_invisible_mode(tmp_path, monkeypatch):
     proxy_controller.state.active_project_id = None
     proxy_controller.state.running = False
     proxy_controller.state.invisible_proxy = False
+    proxy_controller.state.listen_host = "127.0.0.1"
 
     with testing_session() as db:
         project = Project(name="board", proxy_config={"port": 8080})
@@ -115,14 +117,21 @@ def test_droidboard_proxy_start_saves_invisible_mode(tmp_path, monkeypatch):
 
     response = client.post(
         f"/proxy/start?project_id={project_id}&tab=exchanges",
-        data={"invisible_proxy_present": "1", "invisible_proxy": "on"},
+        data={
+            "invisible_proxy_present": "1",
+            "invisible_proxy": "on",
+            "listen_all_interfaces_present": "1",
+            "listen_all_interfaces": "on",
+        },
     )
 
     assert response.status_code == 302
     assert proxy_controller.state.invisible_proxy is True
+    assert proxy_controller.state.listen_host == "0.0.0.0"
     with testing_session() as db:
         project = db.get(Project, project_id)
         assert project.proxy_config["invisible_proxy"] is True
+        assert project.proxy_config["listen_all_interfaces"] is True
 
 
 def test_droidboard_async_post_returns_json_redirect(tmp_path, monkeypatch):

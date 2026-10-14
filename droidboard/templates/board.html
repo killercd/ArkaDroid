@@ -19,7 +19,7 @@
       <div class="status-line">
         <span>Project: {{ project.id if project else '-' }}</span>
         <span>Proxy: {{ 'running' if proxy_state.running else 'stopped' }}</span>
-        <span>Port: {{ proxy_state.listen_port }}</span>
+        <span>Bind: {{ proxy_state.listen_host }}:{{ proxy_state.listen_port }}</span>
         <span>Invisible: {{ 'on' if proxy_state.invisible_proxy else 'off' }}</span>
         <span>Intercept: {{ 'on' if intercept_enabled else 'off' }}</span>
         <span>Authorize: {{ 'on' if authorize_enabled else 'off' }}</span>
@@ -72,6 +72,11 @@
               <label class="nes-checkbox-label">
                 <input type="checkbox" class="nes-checkbox" name="invisible_proxy" {% if invisible_proxy_enabled %}checked{% endif %} {% if proxy_state.running %}disabled{% endif %}>
                 <span>Invisible proxy</span>
+              </label>
+              <input type="hidden" name="listen_all_interfaces_present" value="1">
+              <label class="nes-checkbox-label" title="Allow devices on the network to connect to this proxy">
+                <input type="checkbox" class="nes-checkbox" name="listen_all_interfaces" {% if listen_all_interfaces_enabled %}checked{% endif %} {% if proxy_state.running %}disabled{% endif %}>
+                <span>Listen on all network interfaces</span>
               </label>
             {% endif %}
             <button class="nes-btn is-success" type="submit" {% if not project or proxy_state.running %}disabled{% endif %}>Proxy start</button>

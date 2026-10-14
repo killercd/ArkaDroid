@@ -43,10 +43,15 @@ MANIFEST
 Droidboard/
 Droidboard.exe
 Droidboard-windows-*.zip
+Droidboard-Setup-*.exe
 
 # Installer logs
 pip-log.txt
 pip-delete-this-directory.txt
+
+# Code-signing private keys
+*.pfx
+*.p12
 
 # Unit test / coverage reports
 htmlcov/

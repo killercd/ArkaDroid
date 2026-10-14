@@ -162,7 +162,11 @@ def create_app() -> Flask:
             flash("Project name is required.", "error")
             return _back()
         with SessionLocal() as db:
-            project = Project(name=name, proxy_config={"port": port})
+            listen_host = _proxy_listen_host({})
+            project = Project(
+                name=name,
+                proxy_config={"port": port, "listen_all_interfaces": listen_host == "0.0.0.0"},
+            )
             db.add(project)
             try:
                 db.commit()
@@ -170,7 +174,9 @@ def create_app() -> Flask:
                 db.rollback()
                 flash(f"A project named {name!r} already exists.", "error")
                 return _back()
-            proxy_controller.open_project(db, project.id, port, invisible_proxy=False)
+            proxy_controller.open_project(
+                db, project.id, port, listen_host=listen_host, invisible_proxy=False,
+            )
             flash(f"Created and opened project #{project.id}.", "success")
             return redirect(url_for("index", project_id=project.id))
 
@@ -184,7 +190,13 @@ def create_app() -> Flask:
                 return _back()
             config = project.proxy_config or {}
             port = int(config.get("port", 8080))
-            proxy_controller.open_project(db, project.id, port, invisible_proxy=bool(config.get("invisible_proxy")))
+            proxy_controller.open_project(
+                db,
+                project.id,
+                port,
+                listen_host=_proxy_listen_host(config),
+                invisible_proxy=bool(config.get("invisible_proxy")),
+            )
             flash(f"Opened project #{project.id}.", "success")
             return redirect(url_for("index", project_id=project.id, tab=request.args.get("tab", "exchanges")))
 
@@ -236,8 +248,19 @@ def create_app() -> Flask:
                         enabled = request.form.get("invisible_proxy") == "on"
                         project.proxy_config = {**(project.proxy_config or {}), "invisible_proxy": enabled}
                         proxy_controller.set_invisible_proxy(enabled)
+                    if "listen_all_interfaces_present" in request.form:
+                        listen_all = request.form.get("listen_all_interfaces") == "on"
+                        project.proxy_config = {
+                            **(project.proxy_config or {}),
+                            "listen_all_interfaces": listen_all,
+                        }
+                        proxy_controller.set_listen_host(_proxy_listen_host(project.proxy_config))
                     proxy_controller.start(db)
-                    flash(f"Proxy started on port {proxy_controller.state.listen_port}.", "success")
+                    flash(
+                        f"Proxy started on {proxy_controller.state.listen_host}:"
+                        f"{proxy_controller.state.listen_port}.",
+                        "success",
+                    )
                 elif action == "stop":
                     proxy_controller.stop(db)
                     flash("Proxy stopped.", "success")
@@ -250,9 +273,15 @@ def create_app() -> Flask:
                         flash("Stop the proxy before changing proxy mode.", "error")
                     else:
                         enabled = request.form.get("invisible_proxy") == "on"
-                        project.proxy_config = {**(project.proxy_config or {}), "invisible_proxy": enabled}
+                        listen_all = request.form.get("listen_all_interfaces") == "on"
+                        project.proxy_config = {
+                            **(project.proxy_config or {}),
+                            "invisible_proxy": enabled,
+                            "listen_all_interfaces": listen_all,
+                        }
                         proxy_controller.set_invisible_proxy(enabled)
-                        flash(f"Invisible proxy {'enabled' if enabled else 'disabled'}.", "success")
+                        proxy_controller.set_listen_host(_proxy_listen_host(project.proxy_config))
+                        flash("Proxy settings updated.", "success")
                 else:
                     flash("Invalid proxy action.", "error")
             except Exception as exc:  # noqa: BLE001
@@ -947,7 +976,13 @@ def _base_context(db, project_id: int | None, tab: str) -> dict:
         config = selected_project.proxy_config or {}
         port = int(config.get("port", 8080))
         if proxy_controller.state.active_project_id is None:
-            proxy_controller.open_project(db, selected_project.id, port, invisible_proxy=bool(config.get("invisible_proxy")))
+            proxy_controller.open_project(
+                db,
+                selected_project.id,
+                port,
+                listen_host=_proxy_listen_host(config),
+                invisible_proxy=bool(config.get("invisible_proxy")),
+            )
     return {
         "projects": projects,
         "project": selected_project,
@@ -960,9 +995,20 @@ def _base_context(db, project_id: int | None, tab: str) -> dict:
         "reflect_enabled": bool(selected_project and (selected_project.proxy_config or {}).get("reflect_enabled")),
         "reflect_unique_request": bool(selected_project and (selected_project.proxy_config or {}).get("reflect_unique_request")),
         "invisible_proxy_enabled": bool(selected_project and (selected_project.proxy_config or {}).get("invisible_proxy")),
+        "listen_all_interfaces_enabled": bool(
+            selected_project and _proxy_listen_host(selected_project.proxy_config or {}) == "0.0.0.0"
+        ),
         "filters": request.args,
         "url_args": _url_args,
     }
+
+
+def _proxy_listen_host(config: dict) -> str:
+    """Return an explicit environment override or the project's saved bind mode."""
+    configured_host = getattr(get_settings(), "proxy_host", "127.0.0.1")
+    if configured_host != "127.0.0.1":
+        return configured_host
+    return "0.0.0.0" if config.get("listen_all_interfaces") else "127.0.0.1"
 
 
 def _exchanges_context(db, project_id: int) -> dict:

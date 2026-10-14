@@ -14,13 +14,18 @@ jobs:
       - name: Build desktop package
         shell: pwsh
         run: ./scripts/build-droidboard-windows.ps1 -Python python
-      - name: Test desktop server lifecycle
+      - name: Test source desktop server lifecycle
         shell: pwsh
         run: |
           ./.venv-desktop/Scripts/python.exe -m pip install pytest
           ./.venv-desktop/Scripts/python.exe -m pytest backend/tests/test_droidboard_desktop.py -q
+      - name: Smoke test frozen executable
+        shell: pwsh
+        run: |
+          $env:LOCALAPPDATA = Join-Path $env:RUNNER_TEMP "droidboard-frozen-smoke"
+          ./dist/Droidboard/Droidboard.exe --smoke-test
       - uses: actions/upload-artifact@v4
         with:
           name: Droidboard-windows-x64
-          path: dist/Droidboard-windows-x64.zip
+          path: dist/Droidboard-Setup-windows-x64.exe
           if-no-files-found: error

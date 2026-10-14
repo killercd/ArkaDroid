@@ -102,6 +102,12 @@ class ProxyController:
         self.state.invisible_proxy = enabled
         return self.state
 
+    def set_listen_host(self, listen_host: str) -> ProxyState:
+        if self.state.running:
+            raise RuntimeError("Stop the proxy before changing the listen address.")
+        self.state.listen_host = listen_host
+        return self.state
+
     def start(self, db: Session) -> ProxyState:
         if self.state.active_project_id is None:
             raise RuntimeError("A project must be opened before starting the proxy.")

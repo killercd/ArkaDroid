@@ -64,3 +64,23 @@ assert (root / "data" / "arkadroid.sqlite3").is_file()
         env=env, cwd=tmp_path, capture_output=True, text=True, timeout=30,
     )
     assert result.returncode == 0, result.stdout + result.stderr
+
+
+def test_smoke_test_serves_packaged_routes(tmp_path, monkeypatch):
+    monkeypatch.setenv("ARKADROID_PROJECT_ROOT", str(tmp_path))
+    from droidboard.desktop import configure_storage, smoke_test
+
+    configure_storage()
+    from droidboard.app import app
+
+    smoke_test(app)
+
+
+@pytest.mark.parametrize("argument", ["--proxy-all-interfaces", "--alliface"])
+def test_desktop_proxy_all_interfaces_arguments(monkeypatch, argument):
+    from droidboard.desktop import configure_proxy_binding
+
+    monkeypatch.setenv("ARKADROID_PROXY_HOST", "127.0.0.1")
+    configure_proxy_binding([argument])
+
+    assert os.environ["ARKADROID_PROXY_HOST"] == "0.0.0.0"

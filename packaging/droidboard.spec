@@ -3,7 +3,7 @@ from PyInstaller.utils.hooks import collect_data_files
 
 root = Path(SPECPATH).parent
 a = Analysis(
-    [str(root / 'scripts' / 'droidboard_desktop.py')],
+    [str(root / 'droidboard' / 'desktop.py')],
     pathex=[str(root), str(root / 'backend')],
     binaries=[],
     datas=[
