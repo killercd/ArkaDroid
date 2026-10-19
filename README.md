@@ -6,6 +6,29 @@ proxy, traffic inspection, Repeater, Authorize, Reflector, Fuzzer, mobile tools,
 and static analysis. The backend lives in `backend/app`; templates and static
 assets live in `droidboard`. No separate frontend build is required.
 
+## Screenshots
+
+### HTTP Exchanges
+
+The HTTP Exchanges view provides searchable request history and a side-by-side
+inspection of raw requests and responses captured by the proxy.
+
+![DroidBoard HTTP Exchanges request and response view](imgs/http_exchanges.png)
+
+### Repeater
+
+Repeater lets you edit and resend individual HTTP requests, compare their
+responses, and forward selected requests to other testing tools.
+
+![DroidBoard Repeater request and response editor](imgs/repeater.png)
+
+### Dashboard
+
+The dashboard groups findings detected in captured traffic, such as possible
+secrets, API keys, encoded data, authentication endpoints, and errors.
+
+![DroidBoard dashboard showing detected findings](imgs/Dashboard.png)
+
 ## Setup
 
 Use Python 3.12 and install the application in a virtual environment:
@@ -192,3 +215,12 @@ python -m pytest backend/tests
 ```
 
 `make run`, `make stop`, and `make test` launch, stop, and test DroidBoard.
+
+## Disclaimer
+
+DroidBoard is provided **as is**, without warranties of any kind, express or
+implied. The software may contain defects, vulnerabilities, or other security
+issues, and its use may expose systems or data to risk. Use it only in controlled
+environments and on systems for which you have explicit authorization. You are
+solely responsible for evaluating its suitability and security, and for any
+consequences resulting from its use.
