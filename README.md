@@ -1,6 +1,6 @@
-# DroidBoard
+# ArkaDroid
 
-DroidBoard is a Python security testing application with a Flask web interface
+ArkaDroid is a Python security testing application with a Flask web interface
 and a Windows desktop launcher. It includes project management, an HTTP/HTTPS
 proxy, traffic inspection, Repeater, Authorize, Reflector, Fuzzer, mobile tools,
 and static analysis. The backend lives in `backend/app`; templates and static
