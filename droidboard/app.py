@@ -25,7 +25,7 @@ BACKEND_ROOT = PROJECT_ROOT / "backend"
 if str(BACKEND_ROOT) not in sys.path:
     sys.path.insert(0, str(BACKEND_ROOT))
 
-from app.db.session import SessionLocal, init_db  # noqa: E402
+from app.db.session import SessionLocal, init_db, reclaim_sqlite_space  # noqa: E402
 from app.core.config import get_settings  # noqa: E402
 from app.models.authorize import AuthorizeExchange, AuthorizeUser  # noqa: E402
 from app.models.call_log import CallLog  # noqa: E402
@@ -203,6 +203,7 @@ def create_app() -> Flask:
     @flask_app.post("/projects/<int:project_id>/delete")
     def delete_project(project_id: int):
         with SessionLocal() as db:
+            database_engine = db.get_bind()
             project = db.get(Project, project_id)
             if project is None:
                 flash("Project not found.", "error")
@@ -218,8 +219,9 @@ def create_app() -> Flask:
             db.query(CallLog).filter(CallLog.project_id == project_id).delete(synchronize_session=False)
             db.delete(project)
             db.commit()
-            flash(f"Removed project #{project_id}.", "success")
-            return redirect(url_for("index"))
+        reclaim_sqlite_space(database_engine)
+        flash(f"Removed project #{project_id}.", "success")
+        return redirect(url_for("index"))
 
     @flask_app.post("/exchanges/clear")
     def clear_exchanges():
@@ -228,8 +230,10 @@ def create_app() -> Flask:
             flash("Select a project.", "error")
             return _back()
         with SessionLocal() as db:
+            database_engine = db.get_bind()
             deleted = clear_http_exchanges(db, project_id)
             db.commit()
+        reclaim_sqlite_space(database_engine)
         flash(f"Cleared {deleted} HTTP exchange records.", "success")
         return redirect(url_for("index", project_id=project_id, tab="exchanges"))
 

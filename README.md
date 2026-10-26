@@ -51,6 +51,20 @@ python -m pip install -e ".[dev]"
 The default database is `data/arkadroid.sqlite3`; override it with `DATABASE_URL`.
 Existing database names and `ARKADROID_*` environment settings remain supported.
 
+New SQLite databases use incremental auto-vacuum. After bulk project or HTTP
+history deletion, ArkaDroid automatically returns unused pages to the operating
+system. Existing databases need a one-time conversion while no ArkaDroid process
+is using them:
+
+```bash
+scripts/droidboard.sh stop
+python3 arkadroid_cli.py database compact
+scripts/droidboard.sh start
+```
+
+The compaction command can temporarily require additional disk space and should
+not be interrupted.
+
 ## Droidboard Startup
 
 Start the Flask board:

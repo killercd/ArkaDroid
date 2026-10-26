@@ -13,14 +13,19 @@ from urllib.parse import urlsplit
 
 import click
 import yaml
-from sqlalchemy.exc import IntegrityError
+from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 
 PROJECT_ROOT = Path(__file__).resolve().parent
 BACKEND_ROOT = PROJECT_ROOT / "backend"
 if str(BACKEND_ROOT) not in sys.path:
     sys.path.insert(0, str(BACKEND_ROOT))
 
-from app.db.session import SessionLocal, init_db  # noqa: E402
+from app.db.session import (  # noqa: E402
+    SessionLocal,
+    compact_sqlite_database,
+    init_db,
+    reclaim_sqlite_space,
+)
 from app.models.authorize import AuthorizeExchange, AuthorizeUser  # noqa: E402
 from app.models.call_log import CallLog  # noqa: E402
 from app.models.http import HttpExchange  # noqa: E402
@@ -77,6 +82,21 @@ def http() -> None:
 @cli.group()
 def audit() -> None:
     """Run security checks against saved or raw requests."""
+
+
+@cli.group()
+def database() -> None:
+    """Maintain the ArkaDroid database."""
+
+
+@database.command("compact")
+def database_compact() -> None:
+    """Compact SQLite and enable incremental space reclamation."""
+    try:
+        compact_sqlite_database()
+    except (RuntimeError, SQLAlchemyError) as exc:
+        raise click.ClickException(str(exc)) from exc
+    click.echo("Compacted the SQLite database and enabled incremental auto-vacuum.")
 
 
 @project.command("create")
@@ -154,6 +174,7 @@ def delproject(projectname: str) -> None:
         }
         db.delete(project)
         db.commit()
+    reclaim_sqlite_space()
     click.echo(f"Removed project #{project_id}: {projectname} ({_format_counts(counts)})")
 
 
@@ -1278,4 +1299,3 @@ def _emit(message: str, output_handle=None) -> None:
 
 if __name__ == "__main__":
     cli()
-
