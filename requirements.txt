@@ -4,6 +4,7 @@ SQLAlchemy==2.0.41
 pydantic-settings==2.10.1
 httpx==0.28.1
 cryptography==45.0.5
+PyYAML==6.0.2
 pexpect==4.9.0; os_name != "nt"
 ptyprocess==0.7.0; os_name != "nt"
 
