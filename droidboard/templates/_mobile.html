@@ -160,6 +160,14 @@
           <button class="nes-btn is-error" type="submit" formaction="{{ url_for('mobile', action='uninstall', project_id=project.id) }}">Uninstall</button>
         </div>
       </form>
+      <h4>Objection</h4>
+      <form method="post" action="{{ url_for('mobile', action='install-frida', project_id=project.id) }}" class="mobile-actions">
+        <button class="nes-btn is-success" type="submit">Install Frida</button>
+      </form>
+      <form method="post" action="{{ url_for('mobile', action='disable-root-detection', project_id=project.id) }}" class="mobile-form">
+        <input class="nes-input" type="text" name="package" placeholder="com.example.app" aria-label="Android package name" required>
+        <button class="nes-btn is-primary" type="submit">disable root detection</button>
+      </form>
     </section>
 
     <section class="mobile-block">

@@ -184,6 +184,36 @@ def test_droidboard_mobile_page_exposes_logcat_action(tmp_path, monkeypatch):
     assert "Logcat" in html
     assert "data-remote-browser-open" in html
     assert "data-remote-path-input" in html
+    assert "/mobile/disable-root-detection" in html
+    assert 'name="package"' in html
+    assert "disable root detection" in html
+    assert "/mobile/install-frida" in html
+    assert "Install Frida" in html
+    monkeypatch.setattr(droidboard_app, "install_frida", lambda:
+                        droidboard_app.mobile_service.MobileResult(True, "Install Frida", "", "Connection verified."))
+    response = client.post(f"/mobile/install-frida?project_id={project_id}", follow_redirects=True)
+    assert response.status_code == 200
+    assert "Connection verified." in response.get_data(as_text=True)
+
+    packages = []
+
+    def start_bypass(package):
+        packages.append(package)
+        return droidboard_app.mobile_service.MobileResult(
+            True, droidboard_app.ROOT_BYPASS_TITLE, "android root disable", "HOOKS_ACTIVE_UNVERIFIED")
+
+    monkeypatch.setattr(droidboard_app.root_bypass, "start", start_bypass)
+    response = client.post(f"/mobile/disable-root-detection?project_id={project_id}",
+                           data={"package": "com.example.app"}, follow_redirects=True)
+    assert response.status_code == 200
+    assert packages == ["com.example.app"]
+    assert "HOOKS_ACTIVE_UNVERIFIED" in response.get_data(as_text=True)
+    monkeypatch.setattr(droidboard_app.root_bypass, "status", lambda package:
+                        droidboard_app.mobile_service.MobileResult(
+                            False, droidboard_app.ROOT_BYPASS_TITLE, "android root disable", "SESSION_ENDED"))
+    html = client.get(f"/?project_id={project_id}&tab=mobile").get_data(as_text=True)
+    assert "SESSION_ENDED" in html
+    assert "HOOKS_ACTIVE_UNVERIFIED" not in html
 
 
 def test_droidboard_remote_file_browser_lists_device_path(tmp_path, monkeypatch):

@@ -39,6 +39,8 @@ from app.services.ca import ensure_ca  # noqa: E402
 from app.services.curl import build_curl  # noqa: E402
 from app.services import fuzzer  # noqa: E402
 from app.services import mobile as mobile_service  # noqa: E402
+from app.services.objection_root import TITLE as ROOT_BYPASS_TITLE, root_bypass  # noqa: E402
+from app.services.frida_install import install_frida  # noqa: E402
 from app.services import ios_install  # noqa: E402
 from app.services.repeater import exchange_url, method_and_url, send_repeater_request  # noqa: E402
 from app.services.show_response import HOP_BY_HOP_HEADERS, parse_raw_response  # noqa: E402
@@ -1670,6 +1672,11 @@ def _mobile_context(project_id: int) -> dict:
     result = session.get("mobile_result")
     if session.get("mobile_result_os") != mobile_os:
         result = None
+    if result and result.get("title") == ROOT_BYPASS_TITLE and session.get("root_bypass_package"):
+        current = root_bypass.status(session["root_bypass_package"])
+        if current:
+            result = {"ok": current.ok, "title": current.title, "command": current.command,
+                      "output": current.output, "artifact": current.artifact}
     session.setdefault("ios_install_owner", secrets.token_urlsafe(24))
     session.setdefault("ios_install_csrf", secrets.token_urlsafe(24))
     android_ca_dir = mobile_service.android_ca_path(project_id)
@@ -1938,6 +1945,15 @@ def _now_label() -> str:
 
 
 def _run_mobile_action(project_id: int, action: str) -> mobile_service.MobileResult:
+    if action == "install-frida":
+        return install_frida()
+    if action == "disable-root-detection":
+        session.pop("root_bypass_package", None)
+        package = request.form.get("package", "")
+        result = root_bypass.start(package)
+        if result.ok:
+            session["root_bypass_package"] = package.strip()
+        return result
     session["mobile_os"] = "android"
     if action == "start":
         return mobile_service.start_emulator(request.form.get("avd", mobile_service.DEFAULT_AVD))

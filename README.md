@@ -202,6 +202,60 @@ The workflow smoke-tests the frozen executable's backend and packaged assets wit
 opening a GUI. WebView2 rendering and native file dialogs still need an interactive
 Windows smoke test. PyInstaller [requires a Windows build host](https://pyinstaller.org/en/stable/).
 
+## Android root detection hooks
+
+In **Mobile → Android**, enter the running app's package (for example
+`com.example.app`) and click **disable root detection**. This attaches Objection
+and runs `android root disable`; it does not launch or restart the app.
+
+Install `objection` and `frida-tools` in your tool environment and put their
+executables and Android SDK `adb` on DroidBoard's PATH.
+In the APK box's **Objection** section, **Install Frida** downloads the official
+Android server matching **Objection's own Frida runtime** (including pipx
+environments) and the emulator's CPU architecture,
+enables root ADB, installs it in `/data/local/tmp/frida-server`, starts it, and
+checks the connection. This requires a root-capable emulator image (for example
+AOSP/Google APIs); physical devices are rejected. An already reachable server
+is reused if its version matches. A managed server at `/data/local/tmp/frida-server`
+is restarted/replaced when incompatible or unreachable; servers running from
+other paths are left for the operator to stop manually. The server stops on emulator restart; its binary remains installed,
+and clicking the button again starts it again. No host packages are installed.
+For physical test devices, prepare Frida-server yourself.
+The emulator setup follows the [official Frida Android guide](https://frida.re/docs/android/).
+Server output is available at `/data/local/tmp/frida-server.log`; failures show
+the failed command or connection error and the last server log lines in Mobile
+results. Startup runs in the background with redirected streams to avoid ADB
+waiting on a daemon's inherited transport after the server is already running.
+Connect and authorize one device;
+with multiple devices, set `ANDROID_SERIAL` before starting DroidBoard.
+Objection must support `--name`, `--serial`, and `start --startup-command`
+(checked with installed version 1.12.4). The equivalent manual command is:
+
+```bash
+objection --serial DEVICE_SERIAL --name com.example.app start --startup-command 'android root disable'
+```
+
+The existing Mobile result area reports `HOOKS_ACTIVE_UNVERIFIED` only after
+Objection registers the hooks. Verify the app's behavior manually: native checks,
+anti-Frida, Play Integrity, and server-side checks may still block it. Clicking
+again reuses the active session. Hooks remain attached while other tools run;
+sessions close when DroidBoard exits or after one hour. Reload the Mobile page
+to refresh the last bypass result. The bypass action does not modify APKs or
+install Frida; only **Install Frida** installs the server. Raw app output is not retained.
+
+To launch an app manually with a custom Frida root detection bypass script:
+
+```bash
+frida -U -f com.package.example -l root_detection_bypass.js
+```
+
+`-U` connects to the USB-connected Android device/emulator, `-f` launches the
+target package, and `-l` loads the local JavaScript file. Replace
+`com.package.example` with the app's package name and provide the path to your
+own `root_detection_bypass.js` script. The script must already exist; this
+command does not generate it. A compatible Frida-server must be running on the
+target. The bypass behavior depends on the script and must be verified in the app.
+
 ## Persistence and Logging
 
 Persistence uses SQLite through SQLAlchemy. Intercepted requests are stored in
