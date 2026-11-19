@@ -1,0 +1,3 @@
+# Compatibili con cryptography richiesto da ArkaDroid e DroidTerm.
+cryptography==45.0.5
+jwcrypto==1.5.8

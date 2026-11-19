@@ -184,9 +184,10 @@ def test_droidboard_mobile_page_exposes_logcat_action(tmp_path, monkeypatch):
     assert "Logcat" in html
     assert "data-remote-browser-open" in html
     assert "data-remote-path-input" in html
-    assert "/mobile/disable-root-detection" in html
+    assert "/mobile/execute-objection-command" in html
     assert 'name="package"' in html
-    assert "disable root detection" in html
+    assert 'name="objection_command"' in html
+    assert '<option value="android root disable" selected>' in html
     assert "/mobile/install-frida" in html
     assert "Install Frida" in html
     monkeypatch.setattr(droidboard_app, "install_frida", lambda:
@@ -214,6 +215,19 @@ def test_droidboard_mobile_page_exposes_logcat_action(tmp_path, monkeypatch):
     html = client.get(f"/?project_id={project_id}&tab=mobile").get_data(as_text=True)
     assert "SESSION_ENDED" in html
     assert "HOOKS_ACTIVE_UNVERIFIED" not in html
+
+    for command in ("android sslpinning disable", "reborn test"):
+        assert f'<option value="{command}">{command}</option>' in html
+        response = client.post(
+            f"/mobile/execute-objection-command?project_id={project_id}",
+            data={"package": "com.example.app", "objection_command": command},
+            follow_redirects=True,
+        )
+        assert response.status_code == 200
+        output = response.get_data(as_text=True)
+        assert f"Selection received: {command}" in output
+        assert "Package: com.example.app" in output
+    assert packages == ["com.example.app"]
 
 
 def test_droidboard_remote_file_browser_lists_device_path(tmp_path, monkeypatch):

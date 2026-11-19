@@ -99,7 +99,7 @@ class ObjectionRootBypass:
         self.lock = threading.RLock()
         self.sessions: dict[tuple[str, str], RootSession] = {}
 
-    def start(self, package: str) -> MobileResult:
+    def start(self, package: str, input_command="") -> MobileResult:
         package = package.strip()
         if not re.fullmatch(r"[A-Za-z][A-Za-z0-9_]*(?:\.[A-Za-z][A-Za-z0-9_]*)+", package):
             return self._failure("Enter a valid Android package name, for example com.example.app.")
@@ -137,8 +137,12 @@ class ObjectionRootBypass:
                     or not all(flag in help_result.output for flag in ("--name", "--serial"))
                     or "--startup-command" not in start_help.output):
                 return self._failure("This Objection version must support --name, --serial and start --startup-command. Update Objection.")
-            argv = ["objection", "--serial", serial, "--name", package,
-                    "start", "--startup-command", COMMAND]
+            if not input_command:
+                argv = ["objection", "--serial", serial, "--name", package,
+                        "start", "--startup-command", COMMAND]
+            else:
+                argv = ["objection", "--serial", serial, "--name", package,
+                                        "start", "--startup-command", input_command]
             try:
                 current = RootSession(package, serial, argv)
             except OSError:

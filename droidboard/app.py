@@ -39,6 +39,7 @@ from app.services.ca import ensure_ca  # noqa: E402
 from app.services.curl import build_curl  # noqa: E402
 from app.services import fuzzer  # noqa: E402
 from app.services import mobile as mobile_service  # noqa: E402
+from app.services.objection_root import COMMAND as ROOT_BYPASS_COMMAND  # noqa: E402
 from app.services.objection_root import TITLE as ROOT_BYPASS_TITLE, root_bypass  # noqa: E402
 from app.services.frida_install import install_frida  # noqa: E402
 from app.services import ios_install  # noqa: E402
@@ -49,6 +50,7 @@ from app.services.reflector import set_reflector_enabled  # noqa: E402
 
 
 METHODS = ("GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS")
+OBJECTION_SUBMISSION_CHECKS = ("android sslpinning disable", "reborn test")
 FUZZ_JOBS: dict[int, dict] = {}
 FUZZ_LOCK = threading.Lock()
 FUZZ_JOB_COUNTER = 0
@@ -1684,6 +1686,8 @@ def _mobile_context(project_id: int) -> dict:
     return {
         "mobile_result": result,
         "mobile_os": mobile_os,
+        "objection_default_command": ROOT_BYPASS_COMMAND,
+        "objection_submission_checks": OBJECTION_SUBMISSION_CHECKS,
         "ios_install_csrf": session["ios_install_csrf"],
         "ios_install_job": session.get("ios_install_job", ""),
         "mobile_default_avd": mobile_service.DEFAULT_AVD,
@@ -1947,10 +1951,23 @@ def _now_label() -> str:
 def _run_mobile_action(project_id: int, action: str) -> mobile_service.MobileResult:
     if action == "install-frida":
         return install_frida()
-    if action == "disable-root-detection":
-        session.pop("root_bypass_package", None)
+    if action in {"execute-objection-command", "disable-root-detection"}:
+        command = request.form.get("objection_command")
         package = request.form.get("package", "")
-        result = root_bypass.start(package)
+        
+        # if action == "execute-objection-command" and command in OBJECTION_SUBMISSION_CHECKS:
+        #     package = package.strip()
+        #     title = "Objection form check"
+        #     if len(package) > 255 or not re.fullmatch(r"[A-Za-z][A-Za-z0-9_]*(?:\.[A-Za-z][A-Za-z0-9_]*)+", package):
+        #         return mobile_service.MobileResult(False, title, "", "Enter a valid Android package name.")
+        #     return mobile_service.MobileResult(True, title, "", f"Selection received: {command}\nPackage: {package}")
+        # if command is None and action == "disable-root-detection":
+        #     command = ROOT_BYPASS_COMMAND
+        # if command != ROOT_BYPASS_COMMAND:
+        #     return mobile_service.MobileResult(False, "Objection command", "", "Select a supported Objection command.")
+        session["mobile_os"] = "android"
+        session.pop("root_bypass_package", None)
+        result = root_bypass.start(package, command)
         if result.ok:
             session["root_bypass_package"] = package.strip()
         return result

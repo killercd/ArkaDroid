@@ -164,9 +164,21 @@
       <form method="post" action="{{ url_for('mobile', action='install-frida', project_id=project.id) }}" class="mobile-actions">
         <button class="nes-btn is-success" type="submit">Install Frida</button>
       </form>
-      <form method="post" action="{{ url_for('mobile', action='disable-root-detection', project_id=project.id) }}" class="mobile-form">
-        <input class="nes-input" type="text" name="package" placeholder="com.example.app" aria-label="Android package name" required>
-        <button class="nes-btn is-primary" type="submit">disable root detection</button>
+      <form method="post" action="{{ url_for('mobile', action='execute-objection-command', project_id=project.id) }}" class="mobile-form stack-form">
+        <label>
+          <span>Android package name</span>
+          <input class="nes-input" type="text" name="package" placeholder="com.example.app" required>
+        </label>
+        <label>
+          <span>Objection command</span>
+          <select class="nes-input" name="objection_command">
+            <option value="{{ objection_default_command }}" selected>{{ objection_default_command }}</option>
+            {% for command in objection_submission_checks %}
+              <option value="{{ command }}">{{ command }}</option>
+            {% endfor %}
+          </select>
+        </label>
+        <button class="nes-btn is-primary" type="submit">Submit</button>
       </form>
     </section>
 
